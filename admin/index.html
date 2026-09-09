@@ -149,7 +149,7 @@
                 <button class="tab-btn" onclick="switchTab('approved')">待播放榜单</button>
                 <button class="tab-btn" onclick="switchTab('played')">已播放历史</button>
                 <button class="tab-btn" onclick="switchTab('rejected')">已驳回</button>
-                <button class="tab-btn" onclick="switchTab('content')">内容发布</button>
+                <button class="tab-btn" onclick="switchTab('content')">内容发布与管理</button>
                 <button class="tab-btn" onclick="switchTab('notice')">公告设置</button>
             </div>
 
@@ -181,12 +181,13 @@
 
             <!-- 校园资讯与活动管理 -->
             <div id="contentTab" class="tab-content hidden">
+                <!-- 发布表单 -->
                 <div class="card">
                     <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">➕ 发布新活动 / 校园资讯</h3>
                     <form id="contentForm">
                         <div class="form-group">
                             <label>模块类型</label>
-                            <select id="contentType">
+                            <select id="contentType" onchange="toggleActivityFields()">
                                 <option value="activity">🎉 校园活动 (activities)</option>
                                 <option value="news">📰 校园资讯 (news)</option>
                             </select>
@@ -202,6 +203,22 @@
                                 <input type="text" id="contentIcon" placeholder="如：🎵 / 📢" style="flex:1;">
                             </div>
                         </div>
+
+                        <!-- 专属活动字段（活动时间 & 状态） -->
+                        <div id="activityOnlyFields">
+                            <div class="form-group">
+                                <label>活动时间说明</label>
+                                <input type="text" id="contentEventTime" placeholder="例如：本周五 16:30 - 18:00 或 2026-09-15">
+                            </div>
+                            <div class="form-group">
+                                <label>活动状态</label>
+                                <select id="contentStatus">
+                                    <option value="ongoing">🟢 进行中 / 即将开始</option>
+                                    <option value="ended">⚪ 已结束</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label>点击跳转链接 (URL)</label>
                             <input type="url" id="contentLink" placeholder="https://example.com/details 或留空">
@@ -212,6 +229,18 @@
                         </div>
                         <button type="submit" class="btn-submit">立即发布</button>
                     </form>
+                </div>
+
+                <!-- 已发布内容列表管理 -->
+                <div class="card" style="margin-top:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h3 style="font-size:1rem; color:var(--primary);">📋 已发布内容管理</h3>
+                        <select id="manageTypeFilter" onchange="fetchPublishedContent()" style="width:140px; padding:6px; border-radius:6px; border:1px solid #dfe4ea; font-size:0.8rem;">
+                            <option value="activity">🎉 校园活动</option>
+                            <option value="news">📰 校园资讯</option>
+                        </select>
+                    </div>
+                    <div id="publishedContentList"><div class="empty-hint">加载中...</div></div>
                 </div>
             </div>
 
@@ -325,7 +354,14 @@
             if (tabName === 'approved') fetchApprovedSongs();
             if (tabName === 'played') fetchPlayedSongs();
             if (tabName === 'rejected') fetchRejectedSongs();
+            if (tabName === 'content') fetchPublishedContent();
             if (tabName === 'notice') fetchCurrentNotice();
+        }
+
+        // 切换模块类型时控制显示专属字段
+        function toggleActivityFields() {
+            const type = document.getElementById('contentType').value;
+            document.getElementById('activityOnlyFields').style.display = type === 'activity' ? 'block' : 'none';
         }
 
         // 搜索处理
@@ -376,7 +412,7 @@
             renderSongList(rawSongsCache, 'rejected');
         }
 
-        // 渲染列表核心函数
+        // 渲染歌曲列表核心函数
         function renderSongList(songs, tab) {
             const containerMap = {
                 pending: 'pendingList',
@@ -503,9 +539,15 @@
             const desc = document.getElementById('contentDesc').value.trim();
 
             const table = type === 'activity' ? 'activities' : 'news';
-            const payload = type === 'activity' 
-                ? { title, category: tag, cover_icon: icon, link_url: linkUrl, description: desc }
-                : { title, category: tag, cover_icon: icon, link_url: linkUrl, summary: desc };
+            let payload = { title, category: tag, cover_icon: icon, link_url: linkUrl };
+
+            if (type === 'activity') {
+                const eventTime = document.getElementById('contentEventTime').value.trim();
+                const status = document.getElementById('contentStatus').value;
+                payload = { ...payload, description: desc, event_time: eventTime, status: status };
+            } else {
+                payload = { ...payload, summary: desc };
+            }
 
             const { error } = await db.from(table).insert([payload]);
             if (error) {
@@ -513,8 +555,60 @@
             } else {
                 alert('🎉 内容发布成功！');
                 document.getElementById('contentForm').reset();
+                fetchPublishedContent();
             }
         });
+
+        // 获取已发布活动/资讯列表
+        async function fetchPublishedContent() {
+            const type = document.getElementById('manageTypeFilter').value;
+            const container = document.getElementById('publishedContentList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const table = type === 'activity' ? 'activities' : 'news';
+            const { data, error } = await db.from(table).select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无已发布数据</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;';
+
+                let extraInfo = '';
+                if (type === 'activity') {
+                    const statusText = item.status === 'ended' ? '<span style="color:#888;">[已结束]</span>' : '<span style="color:var(--success);">[进行中]</span>';
+                    const timeText = item.event_time ? ` | ⏱️ ${escapeHtml(item.event_time)}` : '';
+                    extraInfo = `<div style="font-size:0.75rem; color:#666; margin-top:2px;">状态: ${statusText}${timeText}</div>`;
+                }
+
+                card.innerHTML = `
+                    <div style="flex:1; padding-right:10px;">
+                        <div style="font-weight:bold; font-size:0.9rem;">${item.cover_icon || '📌'} ${escapeHtml(item.title)}</div>
+                        <div style="font-size:0.75rem; color:#888; margin-top:2px;">标签: ${escapeHtml(item.category || '无')} | 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}</div>
+                        ${extraInfo}
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deletePublishedContent('${table}', ${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 删除已发布内容
+        async function deletePublishedContent(table, id) {
+            if (!confirm('确定要删除此条发布内容吗？小程序/前台将同步下架。')) return;
+            const { error } = await db.from(table).delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchPublishedContent();
+        }
 
         // 公告获取与发布
         async function fetchCurrentNotice() {
