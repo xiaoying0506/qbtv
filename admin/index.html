@@ -104,6 +104,12 @@
         .reject-reason-box { background-color: #fff0f0; border-left: 3px solid #ff7675; padding: 6px 10px; font-size: 0.8rem; color: #d63031; margin: 6px 0; border-radius: 4px; }
         .empty-hint { text-align: center; color: #b2bec3; padding: 30px 0; }
         .hidden { display: none !important; }
+
+        /* 内容与图片预览样式 */
+        .img-preview { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; margin-right: 12px; flex-shrink: 0; }
+        .status-upcoming { color: #0984e3; font-weight: bold; }
+        .status-ongoing { color: #00b894; font-weight: bold; }
+        .status-ended { color: #b2bec3; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -204,7 +210,13 @@
                             </div>
                         </div>
 
-                        <!-- 专属活动字段（活动时间 & 状态） -->
+                        <!-- 🛠️ 图片功能新增：图片 URL 输入框 -->
+                        <div class="form-group">
+                            <label>🖼️ 封面图片链接 (图片 URL)</label>
+                            <input type="text" id="contentCoverUrl" placeholder="如：https://example.com/image.jpg 或图床链接">
+                        </div>
+
+                        <!-- 🛠️ 活动状态拆分：即将开始 / 进行中 / 已结束 -->
                         <div id="activityOnlyFields">
                             <div class="form-group">
                                 <label>活动时间说明</label>
@@ -213,15 +225,17 @@
                             <div class="form-group">
                                 <label>活动状态</label>
                                 <select id="contentStatus">
-                                    <option value="ongoing">🟢 进行中 / 即将开始</option>
+                                    <option value="upcoming">🔵 即将开始</option>
+                                    <option value="ongoing">🟢 进行中</option>
                                     <option value="ended">⚪ 已结束</option>
                                 </select>
                             </div>
                         </div>
 
+                        <!-- 🛠️ URL Bug 修复：改为普通 text 输入框，防止浏览器原生 url 校验拦截错误 -->
                         <div class="form-group">
-                            <label>点击跳转链接 (URL)</label>
-                            <input type="url" id="contentLink" placeholder="https://example.com/details 或留空">
+                            <label>🔗 点击跳转链接 (可填任意网址/微信文章/小程序路径)</label>
+                            <input type="text" id="contentLink" placeholder="例如: https://... 或直接贴链接">
                         </div>
                         <div class="form-group">
                             <label>简介 / 描述</label>
@@ -530,25 +544,40 @@
             document.body.removeChild(link);
         }
 
-        // 活动/资讯发布提交
+        // 🛠️ 活动/资讯发布提交逻辑（支持图片 URL、三种活动状态、非严格网址链接）
         document.getElementById('contentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const type = document.getElementById('contentType').value;
             const title = document.getElementById('contentTitle').value.trim();
             const tag = document.getElementById('contentTag').value.trim();
             const icon = document.getElementById('contentIcon').value.trim() || '📰';
+            const coverUrl = document.getElementById('contentCoverUrl').value.trim();
             const linkUrl = document.getElementById('contentLink').value.trim();
             const desc = document.getElementById('contentDesc').value.trim();
 
             const table = type === 'activity' ? 'activities' : 'news';
-            let payload = { title, category: tag, cover_icon: icon, link_url: linkUrl };
+            let payload = { 
+                title, 
+                category: tag, 
+                cover_icon: icon, 
+                cover_url: coverUrl, // 写入图片链接
+                link_url: linkUrl 
+            };
 
             if (type === 'activity') {
                 const eventTime = document.getElementById('contentEventTime').value.trim();
-                const status = document.getElementById('contentStatus').value;
-                payload = { ...payload, description: desc, event_time: eventTime, status: status };
+                const status = document.getElementById('contentStatus').value; // upcoming | ongoing | ended
+                payload = { 
+                    ...payload, 
+                    description: desc, 
+                    event_time: eventTime, 
+                    status: status 
+                };
             } else {
-                payload = { ...payload, summary: desc };
+                payload = { 
+                    ...payload, 
+                    summary: desc 
+                };
             }
 
             const { error } = await db.from(table).insert([payload]);
@@ -561,7 +590,7 @@
             }
         });
 
-        // 获取已发布活动/资讯列表
+        // 🛠️ 获取已发布内容列表（带有图片缩略图及精准状态显示）
         async function fetchPublishedContent() {
             const type = document.getElementById('manageTypeFilter').value;
             const container = document.getElementById('publishedContentList');
@@ -583,20 +612,37 @@
             container.innerHTML = '';
             data.forEach(item => {
                 const card = document.createElement('div');
-                card.style.cssText = 'padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;';
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                // 图片预览节点
+                const imgHtml = item.cover_url 
+                    ? `<img src="${escapeHtml(item.cover_url)}" class="img-preview" alt="封面" />` 
+                    : '';
 
                 let extraInfo = '';
                 if (type === 'activity') {
-                    const statusText = item.status === 'ended' ? '<span style="color:#888;">[已结束]</span>' : '<span style="color:var(--success);">[进行中]</span>';
+                    let statusLabel = '';
+                    if (item.status === 'upcoming') statusLabel = '<span class="status-upcoming">[🔵 即将开始]</span>';
+                    else if (item.status === 'ongoing') statusLabel = '<span class="status-ongoing">[🟢 进行中]</span>';
+                    else if (item.status === 'ended') statusLabel = '<span class="status-ended">[⚪ 已结束]</span>';
+                    else statusLabel = `<span class="status-ongoing">[${escapeHtml(item.status || '进行中')}]</span>`;
+
                     const timeText = item.event_time ? ` | ⏱️ ${escapeHtml(item.event_time)}` : '';
-                    extraInfo = `<div style="font-size:0.75rem; color:#666; margin-top:2px;">状态: ${statusText}${timeText}</div>`;
+                    extraInfo = `<div style="font-size:0.75rem; color:#666; margin-top:3px;">状态: ${statusLabel}${timeText}</div>`;
                 }
 
                 card.innerHTML = `
-                    <div style="flex:1; padding-right:10px;">
-                        <div style="font-weight:bold; font-size:0.9rem;">${item.cover_icon || '📌'} ${escapeHtml(item.title)}</div>
-                        <div style="font-size:0.75rem; color:#888; margin-top:2px;">标签: ${escapeHtml(item.category || '无')} | 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}</div>
-                        ${extraInfo}
+                    <div style="display:flex; align-items:center; flex:1; padding-right:10px; overflow:hidden;">
+                        ${imgHtml}
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:0.9rem; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">
+                                ${item.cover_icon || '📌'} ${escapeHtml(item.title)}
+                            </div>
+                            <div style="font-size:0.75rem; color:#888; margin-top:2px;">
+                                标签: ${escapeHtml(item.category || '无')} | 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}
+                            </div>
+                            ${extraInfo}
+                        </div>
                     </div>
                     <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deletePublishedContent('${table}', ${item.id})">删除</button>
                 `;
@@ -606,7 +652,7 @@
 
         // 删除已发布内容
         async function deletePublishedContent(table, id) {
-            if (!confirm('确定要删除此条发布内容吗？小程序/前台将同步下架。')) return;
+            if (!confirm('确定要删除此条发布内容吗？删除后小程序前端将同步下架。')) return;
             const { error } = await db.from(table).delete().eq('id', id);
             if (error) alert('删除失败: ' + error.message);
             else fetchPublishedContent();
@@ -630,7 +676,7 @@
             }
         }
 
-        // 完善 HTML 字符安全转义，包含单双引号
+        // HTML 字符安全转义
         function escapeHtml(str) {
             return (str || '')
                 .replace(/&/g, "&amp;")
