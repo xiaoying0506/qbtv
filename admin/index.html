@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-title" content="广播台审核">
     <title>广播台后台管理端</title>
 
+    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -39,7 +40,7 @@
             padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.75rem;
         }
 
-        .container { max-width: 800px; margin: 15px auto; padding: 0 12px; }
+        .container { max-width: 700px; margin: 15px auto; padding: 0 12px; }
 
         .login-card {
             background: white; border-radius: 12px; padding: 25px 20px;
@@ -47,17 +48,18 @@
         }
         .login-card h2 { font-size: 1.2rem; text-align: center; color: var(--primary); margin-bottom: 20px; }
 
-        /* 统计卡片样式 */
+        /* 顶部统计面板 */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
         .stat-card { background: white; padding: 12px 8px; border-radius: 10px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
         .stat-card .num { font-size: 1.2rem; font-weight: bold; color: var(--primary); }
         .stat-card .label { font-size: 0.75rem; color: var(--gray); margin-top: 2px; }
 
-        /* 检索与导出工具栏 */
+        /* 搜索与工具栏 */
         .toolbar { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
         .search-input { flex: 1; padding: 8px 12px; border: 1px solid #dfe4ea; border-radius: 8px; font-size: 0.85rem; min-width: 180px; }
         .btn-export { background: #27ae60; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
 
+        /* Tab 导航栏 */
         .nav-tabs {
             display: flex; background: white; border-radius: 10px; padding: 5px;
             margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow-x: auto;
@@ -69,9 +71,11 @@
         }
         .tab-btn.active { background: var(--primary); color: white; }
 
+        /* 卡片样式 */
         .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 3px 8px rgba(0,0,0,0.04); }
-        .song-title { font-size: 1.05rem; font-weight: bold; margin-bottom: 4px; }
-        .song-meta { font-size: 0.85rem; color: #636e72; margin-bottom: 8px; }
+        .song-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 4px; }
+        .song-meta { font-size: 0.85rem; color: #636e72; margin-bottom: 6px; }
+        .song-msg { font-size: 0.85rem; color: #2d3436; background: #f8f9fa; padding: 8px; border-radius: 6px; margin: 6px 0; border-left: 3px solid var(--primary); }
 
         .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
         .badge-pending { background: #ffeaa7; color: #d63031; }
@@ -88,6 +92,7 @@
         .btn-delete { background: #fab1a0; color: #d63031; }
         .btn-play { background: var(--primary); color: white; }
 
+        /* 表单样式 */
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 0.85rem; }
         .form-group input, .form-group textarea, .form-group select {
@@ -111,7 +116,7 @@
     </header>
 
     <div class="container">
-        <!-- 登录模块 -->
+        <!-- 1. 管理员登录卡片 -->
         <div id="loginSection" class="login-card">
             <h2>🔐 管理员身份验证</h2>
             <form id="loginForm">
@@ -121,16 +126,16 @@
                 </div>
                 <div class="form-group">
                     <label for="adminPassword">密码</label>
-                    <input type="password" id="adminPassword" placeholder="请输入密码" required>
+                    <input type="password" id="adminPassword" placeholder="请输入管理员密码" required>
                 </div>
                 <button type="submit" class="btn-submit" id="loginBtn">登录后台</button>
             </form>
         </div>
 
-        <!-- 主控制面板 -->
+        <!-- 2. 控制台主界面 -->
         <div id="dashboardSection" class="hidden">
             
-            <!-- 1. 顶部统计指标看板 -->
+            <!-- 数据统计概览面板 -->
             <div class="stats-grid">
                 <div class="stat-card"><div class="num" id="statPending">0</div><div class="label">待审核</div></div>
                 <div class="stat-card"><div class="num" id="statApproved">0</div><div class="label">待播放</div></div>
@@ -138,20 +143,20 @@
                 <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">总点歌量</div></div>
             </div>
 
-            <!-- 2. 功能页签导航 -->
+            <!-- 标签页导航 -->
             <div class="nav-tabs">
                 <button class="tab-btn active" onclick="switchTab('pending')">待审核 <span id="pendingCount"></span></button>
                 <button class="tab-btn" onclick="switchTab('approved')">待播放榜单</button>
-                <button class="tab-btn" onclick="switchTab('played')">历史记录</button>
+                <button class="tab-btn" onclick="switchTab('played')">已播放历史</button>
                 <button class="tab-btn" onclick="switchTab('rejected')">已驳回</button>
                 <button class="tab-btn" onclick="switchTab('content')">内容发布</button>
                 <button class="tab-btn" onclick="switchTab('notice')">公告设置</button>
             </div>
 
-            <!-- 搜索与导出栏 (仅点歌页卡生效) -->
+            <!-- 检索与导出工具栏 -->
             <div id="toolbar" class="toolbar">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索歌名、歌手..." oninput="handleSearch()">
-                <button class="btn-export" onclick="exportApprovedCSV()">📥 导出待播放名单(CSV)</button>
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索歌名、歌手、点歌人..." oninput="handleSearch()">
+                <button class="btn-export" onclick="exportApprovedCSV()">📥 导出待播放名单 (CSV)</button>
             </div>
 
             <!-- 待审核列表 -->
@@ -159,12 +164,12 @@
                 <div id="pendingList"><div class="empty-hint">加载中...</div></div>
             </div>
 
-            <!-- 待播放榜单 -->
+            <!-- 待播放列表 -->
             <div id="approvedTab" class="tab-content hidden">
                 <div id="approvedList"><div class="empty-hint">加载中...</div></div>
             </div>
 
-            <!-- 已播放记录 -->
+            <!-- 已播放列表 -->
             <div id="playedTab" class="tab-content hidden">
                 <div id="playedList"><div class="empty-hint">加载中...</div></div>
             </div>
@@ -174,7 +179,7 @@
                 <div id="rejectedList"><div class="empty-hint">加载中...</div></div>
             </div>
 
-            <!-- 3. 内容管理 Tab（新增：活动与资讯管理） -->
+            <!-- 校园资讯与活动管理 -->
             <div id="contentTab" class="tab-content hidden">
                 <div class="card">
                     <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">➕ 发布新活动 / 校园资讯</h3>
@@ -193,9 +198,13 @@
                         <div class="form-group">
                             <label>分类标签 / Emoji 图标</label>
                             <div style="display:flex; gap:10px;">
-                                <input type="text" id="contentTag" placeholder="如：广播点歌 / 校园快讯" required>
-                                <input type="text" id="contentIcon" placeholder="如：🎵 / 📢" style="width:100px;">
+                                <input type="text" id="contentTag" placeholder="如：广播点歌 / 校园快讯" required style="flex:2;">
+                                <input type="text" id="contentIcon" placeholder="如：🎵 / 📢" style="flex:1;">
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label>点击跳转链接 (URL)</label>
+                            <input type="url" id="contentLink" placeholder="https://example.com/details 或留空">
                         </div>
                         <div class="form-group">
                             <label>简介 / 描述</label>
@@ -206,14 +215,14 @@
                 </div>
             </div>
 
-            <!-- 公告设置 Tab -->
+            <!-- 公告管理 -->
             <div id="noticeTab" class="tab-content hidden">
                 <div class="card">
                     <div class="form-group">
-                        <label>更新前台公告内容</label>
-                        <textarea id="noticeInput" placeholder="输入广播台公告内容（例如：本周点歌截止周五18:00...）"></textarea>
+                        <label>发布/更新首页广播公告</label>
+                        <textarea id="noticeInput" placeholder="输入广播台公告内容（例如：本周点歌截至周五18:00...）"></textarea>
                     </div>
-                    <button class="btn-submit" onclick="publishNotice()">发布公告</button>
+                    <button class="btn-submit" onclick="publishNotice()">更新公告</button>
                 </div>
             </div>
 
@@ -227,7 +236,7 @@
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let activeTab = 'pending';
-        let rawSongsCache = []; // 歌曲数据缓存用于实时搜索
+        let rawSongsCache = [];
 
         // 监听登录状态
         db.auth.onAuthStateChange((event, session) => {
@@ -235,7 +244,7 @@
                 if (session.user.email === ADMIN_EMAIL) {
                     showDashboard();
                 } else {
-                    alert('⚠️ 账号 ' + session.user.email + ' 无管理员权限！');
+                    alert('⚠️ 账号 ' + session.user.email + ' 无管理员访问权限！');
                     db.auth.signOut();
                     showLoginForm();
                 }
@@ -266,7 +275,7 @@
             const btn = document.getElementById('loginBtn');
 
             if (email !== ADMIN_EMAIL) {
-                alert('⚠️ 权限不足！');
+                alert('⚠️ 只有管理员账号 (' + ADMIN_EMAIL + ') 允许登录！');
                 return;
             }
 
@@ -295,7 +304,7 @@
             document.getElementById('statTotal').innerText = songs.length;
         }
 
-        // 切换 Tab
+        // 切换 Tab 页
         function switchTab(tabName) {
             activeTab = tabName;
             const tabs = ['pending', 'approved', 'played', 'rejected', 'content', 'notice'];
@@ -308,7 +317,7 @@
                 if (el) el.classList.toggle('hidden', t !== tabName);
             });
 
-            // 导航栏搜索与导出按钮仅在歌曲Tab显示
+            // 控制搜索栏在资讯/公告页隐藏
             document.getElementById('toolbar').classList.toggle('hidden', ['content', 'notice'].includes(tabName));
 
             document.getElementById('searchInput').value = '';
@@ -319,17 +328,18 @@
             if (tabName === 'notice') fetchCurrentNotice();
         }
 
-        // 实时搜索处理
+        // 搜索处理
         function handleSearch() {
             const query = document.getElementById('searchInput').value.toLowerCase().trim();
             const filtered = rawSongsCache.filter(s => 
                 (s.song_name && s.song_name.toLowerCase().includes(query)) ||
-                (s.artist && s.artist.toLowerCase().includes(query))
+                (s.artist && s.artist.toLowerCase().includes(query)) ||
+                (s.requester && s.requester.toLowerCase().includes(query))
             );
             renderSongList(filtered, activeTab);
         }
 
-        // 获取并渲染待审核歌曲
+        // 获取待审核歌曲列表
         async function fetchPendingSongs() {
             const listEl = document.getElementById('pendingList');
             listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
@@ -348,7 +358,7 @@
             renderSongList(rawSongsCache, 'approved');
         }
 
-        // 获取已播放记录
+        // 获取已播放历史
         async function fetchPlayedSongs() {
             const listEl = document.getElementById('playedList');
             listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
@@ -357,7 +367,7 @@
             renderSongList(rawSongsCache, 'played');
         }
 
-        // 获取已驳回记录
+        // 获取已驳回列表
         async function fetchRejectedSongs() {
             const listEl = document.getElementById('rejectedList');
             listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
@@ -366,7 +376,7 @@
             renderSongList(rawSongsCache, 'rejected');
         }
 
-        // 统一卡片渲染
+        // 渲染列表核心函数
         function renderSongList(songs, tab) {
             const containerMap = {
                 pending: 'pendingList',
@@ -384,14 +394,21 @@
             songs.forEach(song => {
                 const card = document.createElement('div');
                 card.className = 'card';
-                const audioPlayer = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '<div style="font-size:0.8rem; color:#999; margin:6px 0;">(无试听音频)</div>';
                 
+                const audioPlayer = song.audio_url 
+                    ? `<audio controls src="${song.audio_url}"></audio>` 
+                    : '<div style="font-size:0.8rem; color:#999; margin:8px 0;">(未上传音频)</div>';
+
+                const requesterText = song.requester ? ` | 点歌人: ${escapeHtml(song.requester)}` : '';
+                const messageHtml = song.message ? `<div class="song-msg">💬 寄语: ${escapeHtml(song.message)}</div>` : '';
+                const reasonHtml = song.reject_reason ? `<div class="reject-reason-box">驳回原因: ${escapeHtml(song.reject_reason)}</div>` : '';
+
                 let actionBtns = '';
                 if (tab === 'pending') {
                     actionBtns = `
                         <button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">🟢 通过</button>
                         <button class="btn btn-reject" onclick="rejectSong(${song.id})">🔴 驳回</button>
-                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除</button>
+                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除(恢复额度)</button>
                     `;
                 } else if (tab === 'approved') {
                     actionBtns = `
@@ -408,14 +425,13 @@
                     `;
                 }
 
-                const reasonHtml = song.reject_reason ? `<div class="reject-reason-box">驳回原因: ${escapeHtml(song.reject_reason)}</div>` : '';
-
                 card.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
-                        <span class="status-badge badge-${tab}">${tab === 'approved' ? '待播放 (赞: ' + (song.votes || 0) + ')' : tab}</span>
+                        <span class="status-badge badge-${tab}">${tab === 'approved' ? '🟢 待播放 (赞: ' + (song.votes || 0) + ')' : tab}</span>
                     </div>
-                    <div class="song-meta">歌手: ${escapeHtml(song.artist)}</div>
+                    <div class="song-meta">歌手: ${escapeHtml(song.artist)}${requesterText}</div>
+                    ${messageHtml}
                     ${reasonHtml}
                     ${audioPlayer}
                     <div class="btn-group">${actionBtns}</div>
@@ -424,24 +440,27 @@
             });
         }
 
-        // 更新状态与删除操作
+        // 更新状态与删除
         async function updateStatus(songId, status) {
-            await db.from('songs').update({ status, reject_reason: null }).eq('id', songId);
+            const { error } = await db.from('songs').update({ status, reject_reason: null }).eq('id', songId);
+            if (error) alert('操作失败: ' + error.message);
             updateStats();
             refreshCurrentTab();
         }
 
         async function rejectSong(songId) {
-            const reason = prompt('请输入未通过原因（选填）：');
+            const reason = prompt('请输入未通过原因（选填，如：版权限制 / 内容不规范）：');
             if (reason === null) return;
-            await db.from('songs').update({ status: 'rejected', reject_reason: reason }).eq('id', songId);
+            const { error } = await db.from('songs').update({ status: 'rejected', reject_reason: reason }).eq('id', songId);
+            if (error) alert('驳回失败: ' + error.message);
             updateStats();
             refreshCurrentTab();
         }
 
         async function deleteSong(songId) {
-            if (!confirm('确定彻底删除该条记录吗？')) return;
-            await db.from('songs').delete().eq('id', songId);
+            if (!confirm('确定彻底删除该条记录吗？删除后该学生本周将恢复点歌额度。')) return;
+            const { error } = await db.from('songs').delete().eq('id', songId);
+            if (error) alert('删除失败: ' + error.message);
             updateStats();
             refreshCurrentTab();
         }
@@ -453,50 +472,51 @@
             if (activeTab === 'rejected') fetchRejectedSongs();
         }
 
-        // 导出 CSV 功能
+        // 导出 CSV 榜单
         async function exportApprovedCSV() {
             const { data: songs } = await db.from('songs').select('*').eq('status', 'approved').order('votes', { ascending: false });
-            if (!songs || !songs.length) { alert('当前没有待播放的歌曲榜单'); return; }
+            if (!songs || !songs.length) { alert('当前没有待播放的歌曲'); return; }
 
-            let csvContent = "\uFEFF歌名,歌手,得票数,音频链接\n";
+            let csvContent = "\uFEFF歌名,歌手,点歌人,留言寄语,得票数,音频链接\n";
             songs.forEach(s => {
-                csvContent += `"${s.song_name}","${s.artist}",${s.votes || 0},"${s.audio_url || ''}"\n`;
+                csvContent += `"${s.song_name}","${s.artist}","${s.requester || ''}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
             });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            link.setAttribute("download", `广播台播放榜单_${new Date().toISOString().slice(0,10)}.csv`);
+            link.setAttribute("download", `广播台待播放榜单_${new Date().toISOString().slice(0,10)}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
-        // 发布活动/资讯
+        // 活动/资讯发布提交
         document.getElementById('contentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const type = document.getElementById('contentType').value;
             const title = document.getElementById('contentTitle').value.trim();
             const tag = document.getElementById('contentTag').value.trim();
             const icon = document.getElementById('contentIcon').value.trim() || '📰';
+            const linkUrl = document.getElementById('contentLink').value.trim();
             const desc = document.getElementById('contentDesc').value.trim();
 
             const table = type === 'activity' ? 'activities' : 'news';
             const payload = type === 'activity' 
-                ? { title, category: tag, cover_icon: icon, description: desc }
-                : { title, category: tag, cover_icon: icon, summary: desc };
+                ? { title, category: tag, cover_icon: icon, link_url: linkUrl, description: desc }
+                : { title, category: tag, cover_icon: icon, link_url: linkUrl, summary: desc };
 
             const { error } = await db.from(table).insert([payload]);
             if (error) {
                 alert('发布失败: ' + error.message);
             } else {
-                alert('🎉 内容成功发布至前台页面！');
+                alert('🎉 内容发布成功！');
                 document.getElementById('contentForm').reset();
             }
         });
 
-        // 公告设置
+        // 公告获取与发布
         async function fetchCurrentNotice() {
             const { data } = await db.from('announcements').select('content').eq('is_active', true).order('created_at', { ascending: false }).limit(1);
             if (data && data.length > 0) document.getElementById('noticeInput').value = data[0].content;
@@ -506,10 +526,11 @@
             const content = document.getElementById('noticeInput').value;
             await db.from('announcements').update({ is_active: false }).eq('is_active', true);
             if (content.trim()) {
-                await db.from('announcements').insert([{ content, is_active: true }]);
-                alert('🎉 公告更新成功！');
+                const { error } = await db.from('announcements').insert([{ content, is_active: true }]);
+                if (error) alert('发布失败: ' + error.message);
+                else alert('🎉 公告发布成功！');
             } else {
-                alert('公告已清空');
+                alert('🎉 公告已清空/关闭');
             }
         }
 
