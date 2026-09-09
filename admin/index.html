@@ -421,6 +421,8 @@
                 rejected: 'rejectedList'
             };
             const listEl = document.getElementById(containerMap[tab]);
+            if (!listEl) return;
+
             if (!songs || songs.length === 0) {
                 listEl.innerHTML = '<div class="empty-hint">暂无记录</div>';
                 return;
@@ -515,7 +517,7 @@
 
             let csvContent = "\uFEFF歌名,歌手,点歌人,留言寄语,得票数,音频链接\n";
             songs.forEach(s => {
-                csvContent += `"${s.song_name}","${s.artist}","${s.requester || ''}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
+                csvContent += `"${s.song_name || ''}","${s.artist || ''}","${s.requester || ''}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
             });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -628,8 +630,14 @@
             }
         }
 
+        // 完善 HTML 字符安全转义，包含单双引号
         function escapeHtml(str) {
-            return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            return (str || '')
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
         }
     </script>
 </body>
