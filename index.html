@@ -16,6 +16,7 @@
             --light-bg: #f8f9fa;
             --border: #e2e8f0;
             --success: #00b894;
+            --warning: #4834d4;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -44,7 +45,6 @@
             margin-bottom: 15px; border-left: 4px solid var(--primary); padding-left: 10px;
         }
         .section-title { font-size: 1.1rem; font-weight: bold; color: var(--dark); }
-        .more-link { font-size: 0.8rem; color: var(--gray); text-decoration: none; }
 
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px; }
 
@@ -56,10 +56,15 @@
         .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
 
         .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .card-icon { font-size: 1.5rem; background: var(--primary-light); width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        
+        /* 支持图片或Emoji容器 */
+        .card-icon { font-size: 1.5rem; background: var(--primary-light); width: 46px; height: 46px; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .card-icon img { width: 100%; height: 100%; object-fit: cover; }
+
         .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
         .badge-tag { background: #f1f2f6; color: var(--gray); }
         .badge-ongoing { background: #e6f9f0; color: #00b894; }
+        .badge-upcoming { background: #e0f2fe; color: #0284c7; } /* 即将开始 样式 */
         .badge-ended { background: #f1f2f6; color: #b2bec3; }
 
         .card-title { font-size: 1rem; font-weight: bold; margin-bottom: 6px; color: var(--dark); line-height: 1.3; }
@@ -115,7 +120,6 @@
         const SUPABASE_KEY = 'sb_publishable_4HrnKeD4I4NNrMypwy1cjA_js3mIwVS';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 页面加载完成后触发
         document.addEventListener('DOMContentLoaded', () => {
             loadActivities();
             loadNews();
@@ -136,9 +140,24 @@
 
                 grid.innerHTML = '';
                 data.forEach(item => {
-                    const statusBadge = item.status === 'ended' 
-                        ? '<span class="badge badge-ended">已结束</span>' 
-                        : '<span class="badge badge-ongoing">进行中</span>';
+                    // 1. 修复状态判断：精准匹配 ended / upcoming / ongoing
+                    let statusBadge = '<span class="badge badge-ongoing">进行中</span>';
+                    const rawStatus = (item.status || '').toLowerCase().trim();
+
+                    if (rawStatus === 'ended' || rawStatus === '已结束') {
+                        statusBadge = '<span class="badge badge-ended">已结束</span>';
+                    } else if (rawStatus === 'upcoming' || rawStatus === '即将开始') {
+                        statusBadge = '<span class="badge badge-upcoming">即将开始</span>';
+                    }
+
+                    // 2. 修复图片显示逻辑：优先使用图片 URL，若没有则退回 Emoji 默认值
+                    let coverHtml = '🎉';
+                    const coverUrl = item.cover_url || item.image_url || item.cover; // 兼容常见的字段命名
+                    if (coverUrl && coverUrl.startsWith('http')) {
+                        coverHtml = `<img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='🎉';">`;
+                    } else if (item.cover_icon) {
+                        coverHtml = escapeHtml(item.cover_icon);
+                    }
 
                     const eventTimeHtml = item.event_time ? `<div>⏱️ ${escapeHtml(item.event_time)}</div>` : '<div></div>';
                     const targetUrl = item.link_url && item.link_url.trim() !== '' ? item.link_url : 'javascript:void(0);';
@@ -146,11 +165,11 @@
                     const card = document.createElement('a');
                     card.className = 'card';
                     card.href = targetUrl;
-                    if (item.link_url) card.target = '_blank'; // 如果有跳转链接，新标签页打开
+                    if (item.link_url) card.target = '_blank';
 
                     card.innerHTML = `
                         <div class="card-top">
-                            <div class="card-icon">${escapeHtml(item.cover_icon || '🎉')}</div>
+                            <div class="card-icon">${coverHtml}</div>
                             <div>
                                 <span class="badge badge-tag">${escapeHtml(item.category || '校园活动')}</span>
                                 ${statusBadge}
@@ -188,6 +207,14 @@
                 data.forEach(item => {
                     const targetUrl = item.link_url && item.link_url.trim() !== '' ? item.link_url : 'javascript:void(0);';
 
+                    let coverHtml = '📰';
+                    const coverUrl = item.cover_url || item.image_url || item.cover;
+                    if (coverUrl && coverUrl.startsWith('http')) {
+                        coverHtml = `<img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='📰';">`;
+                    } else if (item.cover_icon) {
+                        coverHtml = escapeHtml(item.cover_icon);
+                    }
+
                     const card = document.createElement('a');
                     card.className = 'card';
                     card.href = targetUrl;
@@ -195,7 +222,7 @@
 
                     card.innerHTML = `
                         <div class="card-top">
-                            <div class="card-icon">${escapeHtml(item.cover_icon || '📰')}</div>
+                            <div class="card-icon">${coverHtml}</div>
                             <span class="badge badge-tag">${escapeHtml(item.category || '校园资讯')}</span>
                         </div>
                         <div class="card-title">${escapeHtml(item.title)}</div>
