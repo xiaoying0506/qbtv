@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>活动中心 - 校园广播电视台</title>
+    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #5c67f2; --dark: #2d3436; --gray: #636e72; --border: #e2e8f0; }
@@ -22,17 +23,32 @@
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .card {
             background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border);
-            text-decoration: none; color: inherit; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s;
+            text-decoration: none; color: inherit; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s, box-shadow 0.2s;
         }
         .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
         .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .card-icon { font-size: 1.8rem; background: #eef0ff; width: 45px; height: 45px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        
+        /* 适配图片与 Emoji 的图标框样式 */
+        .card-icon { 
+            font-size: 1.8rem; 
+            background: #eef0ff; 
+            width: 48px; 
+            height: 48px; 
+            border-radius: 10px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            overflow: hidden; 
+        }
+        .card-icon img { width: 100%; height: 100%; object-fit: cover; }
+
         .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
         .badge-ongoing { background: #e6f9f0; color: #00b894; }
+        .badge-upcoming { background: #e0f2fe; color: #0284c7; } /* 新增：即将开始样式 */
         .badge-ended { background: #f1f2f6; color: #b2bec3; }
 
-        .card-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; }
-        .card-desc { font-size: 0.88rem; color: var(--gray); line-height: 1.4; margin-bottom: 15px; }
+        .card-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; color: var(--dark); }
+        .card-desc { font-size: 0.88rem; color: var(--gray); line-height: 1.4; margin-bottom: 15px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .card-meta { font-size: 0.8rem; color: #a4b0be; border-top: 1px dashed var(--border); padding-top: 10px; display: flex; justify-content: space-between; }
         .empty-hint { grid-column: 1 / -1; text-align: center; color: var(--gray); padding: 50px 0; font-size: 0.9rem; }
     </style>
@@ -71,9 +87,24 @@
 
                 container.innerHTML = '';
                 data.forEach(item => {
-                    const statusBadge = item.status === 'ended' 
-                        ? '<span class="badge badge-ended">已结束</span>' 
-                        : '<span class="badge badge-ongoing">进行中</span>';
+                    // 1. 修复状态匹配逻辑 (支持 ended / upcoming / ongoing)
+                    let statusBadge = '<span class="badge badge-ongoing">进行中</span>';
+                    const rawStatus = (item.status || '').toLowerCase().trim();
+
+                    if (rawStatus === 'ended' || rawStatus === '已结束') {
+                        statusBadge = '<span class="badge badge-ended">已结束</span>';
+                    } else if (rawStatus === 'upcoming' || rawStatus === '即将开始') {
+                        statusBadge = '<span class="badge badge-upcoming">即将开始</span>';
+                    }
+
+                    // 2. 修复图片显示逻辑 (读取网络图片 URL，失败时自动退回为 Emoji)
+                    let coverHtml = '🎉';
+                    const coverUrl = item.cover_url || item.image_url || item.cover;
+                    if (coverUrl && coverUrl.startsWith('http')) {
+                        coverHtml = `<img src="${coverUrl}" alt="活动封面" onerror="this.parentNode.innerHTML='🎉';">`;
+                    } else if (item.cover_icon) {
+                        coverHtml = escapeHtml(item.cover_icon);
+                    }
 
                     const targetUrl = item.link_url && item.link_url.trim() !== '' ? item.link_url : 'javascript:void(0);';
 
@@ -85,7 +116,7 @@
                     card.innerHTML = `
                         <div>
                             <div class="card-top">
-                                <div class="card-icon">${escapeHtml(item.cover_icon || '🎉')}</div>
+                                <div class="card-icon">${coverHtml}</div>
                                 ${statusBadge}
                             </div>
                             <div class="card-title">${escapeHtml(item.title)}</div>
