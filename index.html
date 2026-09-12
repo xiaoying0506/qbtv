@@ -48,29 +48,50 @@
 
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px; }
 
+        /* 基础卡片样式 */
         .card {
-            background: white; border-radius: 12px; padding: 16px;
+            background: white; border-radius: 14px; padding: 18px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid var(--border);
-            transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; text-decoration: none; color: inherit; display: block;
+            transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; text-decoration: none; color: inherit; 
+            display: flex; flex-direction: column; justify-content: space-between;
+            position: relative; overflow: hidden; min-height: 180px;
         }
         .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
 
-        .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; z-index: 2; }
         
-        /* 支持图片或Emoji容器 */
+        /* 图标模式容器 */
         .card-icon { font-size: 1.5rem; background: var(--primary-light); width: 46px; height: 46px; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .card-icon img { width: 100%; height: 100%; object-fit: cover; }
 
-        .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
+        .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: bold; backdrop-filter: blur(4px); }
         .badge-tag { background: #f1f2f6; color: var(--gray); }
         .badge-ongoing { background: #e6f9f0; color: #00b894; }
-        .badge-upcoming { background: #e0f2fe; color: #0284c7; } /* 即将开始 样式 */
+        .badge-upcoming { background: #e0f2fe; color: #0284c7; }
         .badge-ended { background: #f1f2f6; color: #b2bec3; }
 
+        .card-body { z-index: 2; }
         .card-title { font-size: 1rem; font-weight: bold; margin-bottom: 6px; color: var(--dark); line-height: 1.3; }
         .card-desc { font-size: 0.85rem; color: var(--gray); line-height: 1.4; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-        .card-meta { font-size: 0.75rem; color: #a4b0be; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px; display: flex; justify-content: space-between; }
+        .card-meta { font-size: 0.75rem; color: #a4b0be; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px; display: flex; justify-content: space-between; z-index: 2; }
+
+        /* 🌟 大图背景铺满模式 🌟 */
+        .card.card-full-bg {
+            background-size: cover;
+            background-position: center;
+            border: none;
+            color: #ffffff;
+        }
+        /* 增加黑色渐变阴影，保障大图上面的白色文字读得清 */
+        .card.card-full-bg::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.85) 100%);
+            z-index: 1;
+        }
+        .card.card-full-bg .card-title { color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+        .card.card-full-bg .card-desc { color: rgba(255, 255, 255, 0.85); }
+        .card.card-full-bg .card-meta { color: rgba(255, 255, 255, 0.75); border-top-color: rgba(255, 255, 255, 0.2); }
 
         .empty-hint { grid-column: 1 / -1; text-align: center; color: var(--gray); padding: 30px 0; font-size: 0.9rem; }
     </style>
@@ -140,7 +161,7 @@
 
                 grid.innerHTML = '';
                 data.forEach(item => {
-                    // 1. 修复状态判断：精准匹配 ended / upcoming / ongoing
+                    // 状态判断
                     let statusBadge = '<span class="badge badge-ongoing">进行中</span>';
                     const rawStatus = (item.status || '').toLowerCase().trim();
 
@@ -150,33 +171,47 @@
                         statusBadge = '<span class="badge badge-upcoming">即将开始</span>';
                     }
 
-                    // 2. 修复图片显示逻辑：优先使用图片 URL，若没有则退回 Emoji 默认值
-                    let coverHtml = '🎉';
-                    const coverUrl = item.cover_url || item.image_url || item.cover; // 兼容常见的字段命名
-                    if (coverUrl && coverUrl.startsWith('http')) {
-                        coverHtml = `<img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='🎉';">`;
-                    } else if (item.cover_icon) {
-                        coverHtml = escapeHtml(item.cover_icon);
-                    }
+                    // 封面图片 URL 判断
+                    const coverUrl = item.cover_url || item.image_url || item.cover;
+                    const hasValidImage = coverUrl && coverUrl.startsWith('http');
+                    
+                    // 核心逻辑：判断是否全屏背景渲染
+                    const isFullBg = item.card_style === 'full_cover' && hasValidImage;
 
                     const eventTimeHtml = item.event_time ? `<div>⏱️ ${escapeHtml(item.event_time)}</div>` : '<div></div>';
                     const targetUrl = item.link_url && item.link_url.trim() !== '' ? item.link_url : 'javascript:void(0);';
 
                     const card = document.createElement('a');
-                    card.className = 'card';
+                    card.className = isFullBg ? 'card card-full-bg' : 'card';
                     card.href = targetUrl;
                     if (item.link_url) card.target = '_blank';
 
+                    if (isFullBg) {
+                        card.style.backgroundImage = `url('${coverUrl}')`;
+                    }
+
+                    // 图标 HTML
+                    let iconHtml = '';
+                    if (!isFullBg) {
+                        if (hasValidImage) {
+                            iconHtml = `<div class="card-icon"><img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='🎉';"></div>`;
+                        } else {
+                            iconHtml = `<div class="card-icon">${escapeHtml(item.cover_icon || '🎉')}</div>`;
+                        }
+                    }
+
                     card.innerHTML = `
                         <div class="card-top">
-                            <div class="card-icon">${coverHtml}</div>
-                            <div>
+                            ${iconHtml}
+                            <div style="margin-left: auto; display: flex; gap: 4px;">
                                 <span class="badge badge-tag">${escapeHtml(item.category || '校园活动')}</span>
                                 ${statusBadge}
                             </div>
                         </div>
-                        <div class="card-title">${escapeHtml(item.title)}</div>
-                        <div class="card-desc">${escapeHtml(item.description || '暂无简介')}</div>
+                        <div class="card-body">
+                            <div class="card-title">${escapeHtml(item.title)}</div>
+                            <div class="card-desc">${escapeHtml(item.description || '暂无简介')}</div>
+                        </div>
                         <div class="card-meta">
                             ${eventTimeHtml}
                             <div>${item.link_url ? '点击查看详情 →' : ''}</div>
@@ -207,26 +242,37 @@
                 data.forEach(item => {
                     const targetUrl = item.link_url && item.link_url.trim() !== '' ? item.link_url : 'javascript:void(0);';
 
-                    let coverHtml = '📰';
                     const coverUrl = item.cover_url || item.image_url || item.cover;
-                    if (coverUrl && coverUrl.startsWith('http')) {
-                        coverHtml = `<img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='📰';">`;
-                    } else if (item.cover_icon) {
-                        coverHtml = escapeHtml(item.cover_icon);
-                    }
+                    const hasValidImage = coverUrl && coverUrl.startsWith('http');
+                    const isFullBg = item.card_style === 'full_cover' && hasValidImage;
 
                     const card = document.createElement('a');
-                    card.className = 'card';
+                    card.className = isFullBg ? 'card card-full-bg' : 'card';
                     card.href = targetUrl;
                     if (item.link_url) card.target = '_blank';
 
+                    if (isFullBg) {
+                        card.style.backgroundImage = `url('${coverUrl}')`;
+                    }
+
+                    let iconHtml = '';
+                    if (!isFullBg) {
+                        if (hasValidImage) {
+                            iconHtml = `<div class="card-icon"><img src="${coverUrl}" alt="封面" onerror="this.parentNode.innerHTML='📰';"></div>`;
+                        } else {
+                            iconHtml = `<div class="card-icon">${escapeHtml(item.cover_icon || '📰')}</div>`;
+                        }
+                    }
+
                     card.innerHTML = `
                         <div class="card-top">
-                            <div class="card-icon">${coverHtml}</div>
-                            <span class="badge badge-tag">${escapeHtml(item.category || '校园资讯')}</span>
+                            ${iconHtml}
+                            <span class="badge badge-tag" style="margin-left: auto;">${escapeHtml(item.category || '校园资讯')}</span>
                         </div>
-                        <div class="card-title">${escapeHtml(item.title)}</div>
-                        <div class="card-desc">${escapeHtml(item.summary || '暂无内容')}</div>
+                        <div class="card-body">
+                            <div class="card-title">${escapeHtml(item.title)}</div>
+                            <div class="card-desc">${escapeHtml(item.summary || '暂无内容')}</div>
+                        </div>
                         <div class="card-meta">
                             <div>${new Date(item.created_at).toLocaleDateString()}</div>
                             <div>${item.link_url ? '阅读全文 →' : ''}</div>
