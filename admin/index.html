@@ -110,6 +110,10 @@
         .status-upcoming { color: #0984e3; font-weight: bold; }
         .status-ongoing { color: #00b894; font-weight: bold; }
         .status-ended { color: #b2bec3; font-weight: bold; }
+        
+        .style-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: normal; margin-left: 6px; }
+        .style-badge-icon { background: #f3f4f6; color: #4b5563; }
+        .style-badge-cover { background: #e0e7ff; color: #4338ca; }
     </style>
 </head>
 <body>
@@ -210,10 +214,19 @@
                             </div>
                         </div>
 
-                        <!-- 🛠️ 图片功能新增：图片 URL 输入框 -->
+                        <!-- 🛠️ 图片功能：图片 URL 输入框 -->
                         <div class="form-group">
                             <label>🖼️ 封面图片链接 (图片 URL)</label>
                             <input type="text" id="contentCoverUrl" placeholder="如：https://example.com/image.jpg 或图床链接">
+                        </div>
+
+                        <!-- 🔥 新增：卡片展示样式选择 -->
+                        <div class="form-group">
+                            <label>🎨 卡片展示样式</label>
+                            <select id="cardStyleSelect">
+                                <option value="icon">小图标模式 (默认，左上角显示图标/图片)</option>
+                                <option value="full_cover">大图铺满背景模式 (图片全屏背景 + 白色文字)</option>
+                            </select>
                         </div>
 
                         <!-- 🛠️ 活动状态拆分：即将开始 / 进行中 / 已结束 -->
@@ -232,7 +245,6 @@
                             </div>
                         </div>
 
-                        <!-- 🛠️ URL Bug 修复：改为普通 text 输入框，防止浏览器原生 url 校验拦截错误 -->
                         <div class="form-group">
                             <label>🔗 点击跳转链接 (可填任意网址/微信文章/小程序路径)</label>
                             <input type="text" id="contentLink" placeholder="例如: https://... 或直接贴链接">
@@ -544,7 +556,7 @@
             document.body.removeChild(link);
         }
 
-        // 🛠️ 活动/资讯发布提交逻辑（支持图片 URL、三种活动状态、非严格网址链接）
+        // 🛠️ 活动/资讯发布提交逻辑（加入 card_style 卡片样式处理）
         document.getElementById('contentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const type = document.getElementById('contentType').value;
@@ -552,6 +564,7 @@
             const tag = document.getElementById('contentTag').value.trim();
             const icon = document.getElementById('contentIcon').value.trim() || '📰';
             const coverUrl = document.getElementById('contentCoverUrl').value.trim();
+            const cardStyle = document.getElementById('cardStyleSelect').value; // 读取卡片样式选项
             const linkUrl = document.getElementById('contentLink').value.trim();
             const desc = document.getElementById('contentDesc').value.trim();
 
@@ -560,7 +573,8 @@
                 title, 
                 category: tag, 
                 cover_icon: icon, 
-                cover_url: coverUrl, // 写入图片链接
+                cover_url: coverUrl, 
+                card_style: cardStyle, // 保存卡片样式 (icon / full_cover)
                 link_url: linkUrl 
             };
 
@@ -590,7 +604,7 @@
             }
         });
 
-        // 🛠️ 获取已发布内容列表（带有图片缩略图及精准状态显示）
+        // 🛠️ 获取已发布内容列表（展示卡片样式 Badge）
         async function fetchPublishedContent() {
             const type = document.getElementById('manageTypeFilter').value;
             const container = document.getElementById('publishedContentList');
@@ -619,6 +633,11 @@
                     ? `<img src="${escapeHtml(item.cover_url)}" class="img-preview" alt="封面" />` 
                     : '';
 
+                // 卡片样式 Badge 标记
+                const cardStyleBadge = item.card_style === 'full_cover' 
+                    ? '<span class="style-badge style-badge-cover">🖼️ 铺满背景</span>' 
+                    : '<span class="style-badge style-badge-icon">📌 图标模式</span>';
+
                 let extraInfo = '';
                 if (type === 'activity') {
                     let statusLabel = '';
@@ -636,7 +655,7 @@
                         ${imgHtml}
                         <div style="flex:1; overflow:hidden;">
                             <div style="font-weight:bold; font-size:0.9rem; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">
-                                ${item.cover_icon || '📌'} ${escapeHtml(item.title)}
+                                ${item.cover_icon || '📌'} ${escapeHtml(item.title)} ${cardStyleBadge}
                             </div>
                             <div style="font-size:0.75rem; color:#888; margin-top:2px;">
                                 标签: ${escapeHtml(item.category || '无')} | 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}
