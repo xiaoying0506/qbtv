@@ -90,10 +90,10 @@
             const view = new DataView(buffer);
             let offset = 0;
 
-            // 1. 校验魔数 (CTEN)
+            // 1. 验证魔数 (CTEN)
             const header = view.getUint32(0, true);
             if (header !== 0x4e455443) throw new Error("非法的 NCM 文件格式");
-            offset += 10; // 4字节Magic + 2字节Gap + 4字节空领
+            offset += 10;
 
             // 2. 解密密钥数据
             const keyLen = view.getUint32(offset, true);
@@ -105,7 +105,7 @@
 
             const aesEcb = new aesjs.ModeOfOperation.ecb(CORE_KEY);
             const decryptedKey = aesEcb.decrypt(keyData);
-            const keyBytes = decryptedKey.slice(17); // 剔除 "neteasecloudmusic" 前缀
+            const keyBytes = decryptedKey.slice(17);
 
             // 3. 构建 S 盒
             const S = new Uint8Array(256);
@@ -116,41 +116,60 @@
                 let tmp = S[i]; S[i] = S[j]; S[j] = tmp;
             }
 
-            // 4. 跳过 Metadata 元数据
+            // 4. 跳过 Metadata 与 封面
             const metaLen = view.getUint32(offset, true);
             offset += 4;
             if (metaLen > 0) offset += metaLen;
 
-            // 5. 跳过 CRC 与 封面图片
-            offset += 9; // 4字节CRC + 5字节Gap
+            offset += 5; // CRC & gap
             const imgLen = view.getUint32(offset, true);
             offset += 4 + imgLen;
 
-            // 6. 还原加密的音频数据流
-            const audioData = new Uint8Array(buffer.slice(offset));
+            // 5. 对剩余所有数据进行异或还原
+            const audioRaw = new Uint8Array(buffer.slice(offset));
             const K = new Uint8Array(256);
             for (let i = 0; i < 256; i++) {
                 K[i] = S[(S[i] + S[(i + S[i]) & 0xff]) & 0xff];
             }
 
-            for (let i = 0; i < audioData.length; i++) {
-                audioData[i] ^= K[i & 0xff];
+            for (let i = 0; i < audioRaw.length; i++) {
+                audioRaw[i] ^= K[i & 0xff];
             }
 
-            // 7. 精确识别 FLAC / MP3 文件头特征
+            // 6. 🔥【核心修复】智能寻找真正音频头部 Marker（兼容不同版本的网易云文件结构）
+            let realAudioStart = 0;
             let ext = "mp3";
             let mimeType = "audio/mpeg";
 
-            if (audioData.length > 4 && 
-                audioData[0] === 0x66 && 
-                audioData[1] === 0x4c && 
-                audioData[2] === 0x61 && 
-                audioData[3] === 0x43) {
-                ext = "flac";
-                mimeType = "audio/flac";
+            // 优先检测是否为 FLAC (fLaC 标识)
+            for (let i = 0; i < Math.min(audioRaw.length - 4, 1024); i++) {
+                if (audioRaw[i] === 0x66 && audioRaw[i+1] === 0x4c && audioRaw[i+2] === 0x61 && audioRaw[i+3] === 0x43) {
+                    realAudioStart = i;
+                    ext = "flac";
+                    mimeType = "audio/flac";
+                    break;
+                }
             }
 
-            const blob = new Blob([audioData], { type: mimeType });
+            // 如果不是 FLAC，寻找 MP3 ID3v2 头部 ("ID3") 或 Frame Sync (0xFF 0xFB / 0xFF 0xF3 / 0xFF 0xF2)
+            if (ext === "mp3") {
+                for (let i = 0; i < Math.min(audioRaw.length - 3, 1024); i++) {
+                    // 匹配 ID3 标签
+                    if (audioRaw[i] === 0x49 && audioRaw[i+1] === 0x44 && audioRaw[i+2] === 0x33) {
+                        realAudioStart = i;
+                        break;
+                    }
+                    // 匹配 MP3 帧头 Sync Word
+                    if (audioRaw[i] === 0xff && (audioRaw[i+1] & 0xe0) === 0xe0) {
+                        realAudioStart = i;
+                        break;
+                    }
+                }
+            }
+
+            // 截取精准纯净的音频流
+            const cleanAudio = audioRaw.subarray(realAudioStart);
+            const blob = new Blob([cleanAudio], { type: mimeType });
             const originalName = file.name.replace(/\.ncm$/i, '');
             
             return {
