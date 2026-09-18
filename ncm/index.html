@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 NCM 格式在线解密器</title>
+    <title>🔓 NCM 格式在线解密器</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入纯 JS 的 AES 解密库，完美支持 HTTP 页面 -->
     <script src="https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
@@ -13,7 +12,7 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-slate-800">🔓 NCM 格式在线解密器</h1>
-            <p class="text-sm text-slate-500 mt-1">本地直接将 NCM 还原为 MP3 / FLAC · 支持 HTTP/HTTPS</p>
+            <p class="text-sm text-slate-500 mt-1">本地直接将 NCM 还原为 MP3 / FLAC · 秒级解密</p>
         </div>
 
         <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
@@ -80,7 +79,7 @@
                 } catch (err) {
                     const statusEl = itemEl.querySelector('.status');
                     statusEl.className = 'text-red-500 font-bold';
-                    statusEl.innerText = '解密失败';
+                    statusEl.innerText = '解密失败: ' + err.message;
                     console.error(err);
                 }
             }
@@ -91,10 +90,12 @@
             const view = new DataView(buffer);
             let offset = 0;
 
+            // 1. 校验魔数 (CTEN)
             const header = view.getUint32(0, true);
-            if (header !== 0x4e455443) throw new Error("非法的 NCM 文件");
-            offset += 10;
+            if (header !== 0x4e455443) throw new Error("非法的 NCM 文件格式");
+            offset += 10; // 4字节Magic + 2字节Gap + 4字节空领
 
+            // 2. 解密密钥数据
             const keyLen = view.getUint32(offset, true);
             offset += 4;
             const keyData = new Uint8Array(buffer, offset, keyLen);
@@ -102,11 +103,11 @@
 
             for (let i = 0; i < keyData.length; i++) keyData[i] ^= 0x64;
 
-            // 使用纯 JS 的 aesjs 库，兼容 HTTP 环境
             const aesEcb = new aesjs.ModeOfOperation.ecb(CORE_KEY);
             const decryptedKey = aesEcb.decrypt(keyData);
-            const keyBytes = decryptedKey.slice(17);
+            const keyBytes = decryptedKey.slice(17); // 剔除 "neteasecloudmusic" 前缀
 
+            // 3. 构建 S 盒
             const S = new Uint8Array(256);
             for (let i = 0; i < 256; i++) S[i] = i;
             let j = 0;
@@ -115,15 +116,18 @@
                 let tmp = S[i]; S[i] = S[j]; S[j] = tmp;
             }
 
+            // 4. 跳过 Metadata 元数据
             const metaLen = view.getUint32(offset, true);
             offset += 4;
             if (metaLen > 0) offset += metaLen;
 
-            offset += 5; 
+            // 5. 跳过 CRC 与 封面图片
+            offset += 9; // 4字节CRC + 5字节Gap
             const imgLen = view.getUint32(offset, true);
             offset += 4 + imgLen;
 
-            const audioData = new Uint8Array(buffer, offset);
+            // 6. 还原加密的音频数据流
+            const audioData = new Uint8Array(buffer.slice(offset));
             const K = new Uint8Array(256);
             for (let i = 0; i < 256; i++) {
                 K[i] = S[(S[i] + S[(i + S[i]) & 0xff]) & 0xff];
@@ -133,12 +137,20 @@
                 audioData[i] ^= K[i & 0xff];
             }
 
+            // 7. 精确识别 FLAC / MP3 文件头特征
             let ext = "mp3";
-            if (audioData.length > 4 && audioData[0] === 0x66 && audioData[1] === 0x4c && audioData[2] === 0x61 && audioData[3] === 0x43) {
+            let mimeType = "audio/mpeg";
+
+            if (audioData.length > 4 && 
+                audioData[0] === 0x66 && 
+                audioData[1] === 0x4c && 
+                audioData[2] === 0x61 && 
+                audioData[3] === 0x43) {
                 ext = "flac";
+                mimeType = "audio/flac";
             }
 
-            const blob = new Blob([audioData], { type: `audio/${ext}` });
+            const blob = new Blob([audioData], { type: mimeType });
             const originalName = file.name.replace(/\.ncm$/i, '');
             
             return {
