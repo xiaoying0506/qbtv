@@ -4,98 +4,77 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎵 在线音频格式转换器</title>
-    <!-- Tailwind CSS 样式库 -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FFmpeg 转换引擎核心库 -->
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+    <!-- 引入纯 JS 的 MP3 编码库 lamejs，不依赖 SharedArrayBuffer，兼容性极佳 -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-slate-800">🎵 在线音频格式转换器</h1>
-            <p class="text-sm text-slate-500 mt-1">本地浏览器直接转码 · 支持 OGG/WAV/AAC/FLAC 转 MP3</p>
+            <h1 class="text-2xl font-bold text-slate-800">🎵 在线音频转 MP3 转换器</h1>
+            <p class="text-sm text-slate-500 mt-1">纯本地解码编码 · 兼容所有网络环境与浏览器</p>
         </div>
 
-        <!-- 1. 文件上传区 -->
+        <!-- 1. 文件选择 -->
         <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-6 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
             <input type="file" id="fileInput" accept="audio/*" class="hidden">
             <div class="space-y-2">
-                <div class="text-4xl">📁</div>
+                <div class="text-4xl">🎼</div>
                 <p class="text-sm font-medium text-slate-700">点击选择音频文件 或 将文件拖拽到此处</p>
-                <p class="text-xs text-slate-400">支持 MP3, WAV, OGG, AAC, FLAC, M4A 等格式</p>
+                <p class="text-xs text-slate-400">支持 OGG, WAV, AAC, FLAC, M4A 等音频文件</p>
             </div>
         </div>
 
         <!-- 文件信息 -->
         <div id="fileInfo" class="hidden mt-4 p-4 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200">
             <div class="overflow-hidden mr-3">
-                <div id="fileName" class="font-medium text-sm text-slate-800 truncate">audio.mp3</div>
+                <div id="fileName" class="font-medium text-sm text-slate-800 truncate">audio.wav</div>
                 <div id="fileSize" class="text-xs text-slate-400">0 MB</div>
             </div>
             <button id="removeFileBtn" class="text-xs text-red-500 hover:text-red-700 font-medium">移除</button>
         </div>
 
-        <!-- 2. 参数设置 -->
+        <!-- 2. 设置与转换按钮 -->
         <div id="settingsArea" class="hidden mt-6 space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">目标输出格式</label>
-                    <select id="targetFormat" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                        <option value="mp3">MP3 (.mp3)</option>
-                        <option value="wav">WAV (.wav)</option>
-                        <option value="aac">AAC (.aac)</option>
-                        <option value="ogg">OGG (.ogg)</option>
-                        <option value="flac">FLAC (.flac)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">音频比特率</label>
-                    <select id="targetBitrate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                        <option value="320k">320 kbps (高音质)</option>
-                        <option value="192k" selected>192 kbps (标准音质)</option>
-                        <option value="128k">128 kbps (小体积)</option>
-                    </select>
-                </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">MP3 比特率设置</label>
+                <select id="targetBitrate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    <option value="192" selected>192 kbps (标准音质)</option>
+                    <option value="128">128 kbps (较小体积)</option>
+                    <option value="96">96 kbps (极小体积)</option>
+                </select>
             </div>
 
             <button id="convertBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition">
-                ⚡ 开始转换格式
+                ⚡ 开始转换为 MP3
             </button>
         </div>
 
-        <!-- 3. 转换进度 -->
+        <!-- 3. 进度条 -->
         <div id="progressArea" class="hidden mt-6 space-y-2">
             <div class="flex justify-between text-xs text-slate-600">
-                <span id="statusText">正在初始化引擎...</span>
+                <span id="statusText">正在解析音频流...</span>
                 <span id="progressPercent">0%</span>
             </div>
             <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                <div id="progressBar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-200" style="width: 0%"></div>
+                <div id="progressBar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-150" style="width: 0%"></div>
             </div>
         </div>
 
-        <!-- 4. 转换完成下载 -->
+        <!-- 4. 下载区域 -->
         <div id="resultArea" class="hidden mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center space-y-3">
-            <div class="text-emerald-700 font-bold text-sm">🎉 音频转换完成！</div>
+            <div class="text-emerald-700 font-bold text-sm">🎉 MP3 转换完成！</div>
             <audio id="audioPreview" controls class="w-full h-10"></audio>
             <a id="downloadBtn" download class="inline-block w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm transition">
-                📥 下载转换后的文件
+                📥 下载 MP3 文件
             </a>
         </div>
     </div>
 
     <script>
-        // 必须包含在 <script> 标签内
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        
-        const ffmpeg = createFFmpeg({
-            log: false,
-            corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-        });
-
         let selectedFile = null;
-        let isConverting = false;
 
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -152,53 +131,42 @@
         });
 
         convertBtn.addEventListener('click', async () => {
-            if (!selectedFile || isConverting) return;
+            if (!selectedFile) return;
 
-            isConverting = true;
             convertBtn.disabled = true;
             convertBtn.classList.add('opacity-50', 'cursor-not-allowed');
             progressArea.classList.remove('hidden');
             resultArea.classList.add('hidden');
 
-            const targetFormat = document.getElementById('targetFormat').value;
-            const targetBitrate = document.getElementById('targetBitrate').value;
-
             try {
-                if (!ffmpeg.isLoaded()) {
-                    statusText.innerText = '正在加载引擎(首次较慢)...';
-                    await ffmpeg.load();
-                }
+                statusText.innerText = '正在读取文件数据...';
+                progressBar.style.width = '10%';
+                progressPercent.innerText = '10%';
 
-                ffmpeg.setProgress(({ ratio }) => {
-                    const percent = Math.min(Math.round(ratio * 100), 100);
-                    progressBar.style.width = percent + '%';
-                    progressPercent.innerText = percent + '%';
-                    statusText.innerText = percent < 100 ? '正在转码音频中...' : '正在打包文件...';
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                
+                statusText.innerText = '正在解码音频...';
+                progressBar.style.width = '30%';
+                progressPercent.innerText = '30%';
+
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+                statusText.innerText = '正在编码为 MP3...';
+                const bitrate = parseInt(document.getElementById('targetBitrate').value, 10);
+                
+                const mp3Blob = await encodeMp3Async(audioBuffer, bitrate, (percent) => {
+                    const currentPercent = 30 + Math.round(percent * 0.65);
+                    progressBar.style.width = currentPercent + '%';
+                    progressPercent.innerText = currentPercent + '%';
                 });
 
-                const inputExt = selectedFile.name.split('.').pop();
-                const timestamp = Date.now();
-                const inputName = `input_${timestamp}.${inputExt}`;
-                const outputName = `output_${timestamp}.${targetFormat}`;
+                progressBar.style.width = '100%';
+                progressPercent.innerText = '100%';
 
-                statusText.innerText = '正在读取文件...';
-                ffmpeg.FS('writeFile', inputName, await fetchFile(selectedFile));
-
-                statusText.innerText = '正在转码...';
-                let ffmpegArgs = ['-i', inputName];
-                if (['mp3', 'aac', 'ogg'].includes(targetFormat)) {
-                    ffmpegArgs.push('-b:a', targetBitrate);
-                }
-                ffmpegArgs.push(outputName);
-
-                await ffmpeg.run(...ffmpegArgs);
-
-                const data = ffmpeg.FS('readFile', outputName);
-                const blob = new Blob([data.buffer], { type: `audio/${targetFormat}` });
-                const url = URL.createObjectURL(blob);
-
-                const originalBaseName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.'));
-                const finalFileName = `${originalBaseName}_converted.${targetFormat}`;
+                const url = URL.createObjectURL(mp3Blob);
+                const originalBaseName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
+                const finalFileName = `${originalBaseName}_converted.mp3`;
 
                 audioPreview.src = url;
                 downloadBtn.href = url;
@@ -207,20 +175,78 @@
                 progressArea.classList.add('hidden');
                 resultArea.classList.remove('hidden');
 
-                try {
-                    ffmpeg.FS('unlink', inputName);
-                    ffmpeg.FS('unlink', outputName);
-                } catch(e) {}
-
             } catch (err) {
-                alert('转换失败: ' + err.message);
+                alert('转换失败：浏览器无法解码此音频格式或文件损坏。');
                 console.error(err);
             } finally {
-                isConverting = false;
                 convertBtn.disabled = false;
                 convertBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         });
+
+        // 异步分块编码 MP3，避免界面卡顿
+        function encodeMp3Async(audioBuffer, kbps, onProgress) {
+            return new Promise((resolve) => {
+                const channels = audioBuffer.numberOfChannels;
+                const sampleRate = audioBuffer.sampleRate;
+                const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
+
+                const samplesL = audioBuffer.getChannelData(0);
+                const samplesR = channels > 1 ? audioBuffer.getChannelData(1) : samplesL;
+
+                // 转换 32 位浮点数采样到 16 位整数 PCM
+                const leftInt16 = new Int16Array(samplesL.length);
+                const rightInt16 = new Int16Array(samplesR.length);
+
+                for (let i = 0; i < samplesL.length; i++) {
+                    let sL = Math.max(-1, Math.min(1, samplesL[i]));
+                    leftInt16[i] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+
+                    let sR = Math.max(-1, Math.min(1, samplesR[i]));
+                    rightInt16[i] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+                }
+
+                const sampleBlockSize = 1152;
+                const mp3Data = [];
+                let length = leftInt16.length;
+                let offset = 0;
+
+                function processChunk() {
+                    let end = Math.min(offset + sampleBlockSize * 100, length);
+                    
+                    for (let i = offset; i < end; i += sampleBlockSize) {
+                        const leftChunk = leftInt16.subarray(i, i + sampleBlockSize);
+                        const rightChunk = rightInt16.subarray(i, i + sampleBlockSize);
+                        
+                        let mp3buf;
+                        if (channels === 1) {
+                            mp3buf = mp3encoder.encodeBuffer(leftChunk);
+                        } else {
+                            mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+                        }
+
+                        if (mp3buf.length > 0) {
+                            mp3Data.push(mp3buf);
+                        }
+                    }
+
+                    offset = end;
+                    onProgress(offset / length * 100);
+
+                    if (offset < length) {
+                        setTimeout(processChunk, 0);
+                    } else {
+                        const mp3buf = mp3encoder.flush();
+                        if (mp3buf.length > 0) {
+                            mp3Data.push(mp3buf);
+                        }
+                        resolve(new Blob(mp3Data, { type: 'audio/mp3' }));
+                    }
+                }
+
+                processChunk();
+            });
+        }
     </script>
 </body>
 </html>
