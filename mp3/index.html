@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 纯前端在线音频格式转换器</title>
+    <!-- Tailwind CSS 样式库 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FFmpeg.wasm 核心库 (v0.10.1 无需配置复杂的跨域 Header 即可运行) -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
+        <!-- 头部标题 -->
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800">🎵 在线音频格式转换器</h1>
+            <p class="text-sm text-slate-500 mt-1">本地浏览器直接转换 · 保护隐私 · 免上传服务器</p>
+        </div>
+
+        <!-- 1. 文件上传区域 -->
+        <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-6 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
+            <input type="file" id="fileInput" accept="audio/*" class="hidden">
+            <div class="space-y-2">
+                <div class="text-4xl">📁</div>
+                <p class="text-sm font-medium text-slate-700">点击选择音频文件 或 将文件拖拽到此处</p>
+                <p class="text-xs text-slate-400">支持 MP3, WAV, OGG, AAC, FLAC, M4A, WMA 等格式</p>
+            </div>
+        </div>
+
+        <!-- 文件预览信息 (默认隐藏) -->
+        <div id="fileInfo" class="hidden mt-4 p-4 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200">
+            <div class="overflow-hidden mr-3">
+                <div id="fileName" class="font-medium text-sm text-slate-800 truncate">audio.mp3</div>
+                <div id="fileSize" class="text-xs text-slate-400">0 MB</div>
+            </div>
+            <button id="removeFileBtn" class="text-xs text-red-500 hover:text-red-700 font-medium">移除</button>
+        </div>
+
+        <!-- 2. 转换参数设置 -->
+        <div id="settingsArea" class="hidden mt-6 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">目标输出格式</label>
+                    <select id="targetFormat" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="mp3">MP3 (.mp3)</option>
+                        <option value="wav">WAV (.wav)</option>
+                        <option value="aac">AAC (.aac)</option>
+                        <option value="ogg">OGG (.ogg)</option>
+                        <option value="flac">FLAC (.flac)</option>
+                        <option value="m4a">M4A (.m4a)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">音频比特率 (音质)</label>
+                    <select id="targetBitrate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="320k">320 kbps (极高音质)</option>
+                        <option value="192k" selected>192 kbps (标准音质)</option>
+                        <option value="128k">128 kbps (较小体积)</option>
+                        <option value="64k">64 kbps (低音质/语音)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="convertBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition">
+                ⚡ 开始转换格式
+            </button>
+        </div>
+
+        <!-- 3. 转换进度条 (默认隐藏) -->
+        <div id="progressArea" class="hidden mt-6 space-y-2">
+            <div class="flex justify-between text-xs text-slate-600">
+                <span id="statusText">正在初始化 FFmpeg 引擎...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div id="progressBar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-200" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 4. 转换完成与下载 (默认隐藏) -->
+        <div id="resultArea" class="hidden mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center space-y-3">
+            <div class="text-emerald-700 font-bold text-sm">🎉 音频转换完成！</div>
+            <audio id="audioPreview" controls class="w-full h-10"></audio>
+            <a id="downloadBtn" download class="inline-block w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm transition">
+                📥 下载转换后的文件
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        
+        // 初始化 FFmpeg 实例
+        const ffmpeg = createFFmpeg({
+            log: false,
+            corePath: 'https://unpkg.com/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js'
+        });
+
+        let selectedFile = null;
+
+        // DOM 元素引用
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const settingsArea = document.getElementById('settingsArea');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressArea = document.getElementById('progressArea');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const statusText = document.getElementById('statusText');
+        const resultArea = document.getElementById('resultArea');
+        const audioPreview = document.getElementById('audioPreview');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // 点击上传区域触发文件选择器
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        // 拖拽文件上传逻辑
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-indigo-500', 'bg-indigo-100/50');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        // 处理选中的文件
+        function handleFileSelect(file) {
+            selectedFile = file;
+            fileName.innerText = file.name;
+            fileSize.innerText = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            
+            fileInfo.classList.remove('hidden');
+            settingsArea.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            progressArea.classList.add('hidden');
+        }
+
+        // 移除已选文件
+        removeFileBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+            settingsArea.classList.add('hidden');
+            resultArea.classList.add('hidden');
+            progressArea.classList.add('hidden');
+        });
+
+        // 点击开始转换
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // 禁用按钮并显示进度条
+            convertBtn.disabled = true;
+            convertBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            progressArea.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+
+            const targetFormat = document.getElementById('targetFormat').value;
+            const targetBitrate = document.getElementById('targetBitrate').value;
+
+            try {
+                // 1. 加载 FFmpeg 核心引擎
+                if (!ffmpeg.isLoaded()) {
+                    statusText.innerText = '正在加载 WebAssembly 音频引擎...';
+                    await ffmpeg.load();
+                }
+
+                // 2. 监听转换进度
+                ffmpeg.setProgress(({ ratio }) => {
+                    const percent = Math.min(Math.round(ratio * 100), 100);
+                    progressBar.style.width = percent + '%';
+                    progressPercent.innerText = percent + '%';
+                    statusText.innerText = percent < 100 ? '正在转码音频格式中...' : '正在打包生成目标文件...';
+                });
+
+                // 3. 将文件写入 FFmpeg 虚拟内存系统
+                const inputExt = selectedFile.name.split('.').pop();
+                const inputName = `input.${inputExt}`;
+                const outputName = `output.${targetFormat}`;
+
+                statusText.innerText = '正在读取文件...';
+                ffmpeg.FS('writeFile', inputName, await fetchFile(selectedFile));
+
+                // 4. 执行转换命令
+                statusText.innerText = '正在转码...';
+                
+                // 根据格式调整 FFmpeg 参数
+                let ffmpegArgs = ['-i', inputName];
+                if (['mp3', 'aac', 'ogg', 'm4a'].includes(targetFormat)) {
+                    ffmpegArgs.push('-b:a', targetBitrate);
+                }
+                ffmpegArgs.push(outputName);
+
+                await ffmpeg.run(...ffmpegArgs);
+
+                // 5. 从虚拟内存读取转换后的文件数据
+                const data = ffmpeg.FS('readFile', outputName);
+
+                // 6. 生成 Blob 链接供预览与下载
+                const blob = new Blob([data.buffer], { type: `audio/${targetFormat}` });
+                const url = URL.createObjectURL(blob);
+
+                // 生成导出文件名
+                const originalBaseName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.'));
+                const finalFileName = `${originalBaseName}_converted.${targetFormat}`;
+
+                audioPreview.src = url;
+                downloadBtn.href = url;
+                downloadBtn.download = finalFileName;
+
+                // 转换完成 UI 反馈
+                progressArea.classList.add('hidden');
+                resultArea.classList.remove('hidden');
+
+                // 清理虚拟文件内存
+                ffmpeg.FS('unlink', inputName);
+                ffmpeg.FS('unlink', outputName);
+
+            } catch (err) {
+                alert('转换失败: ' + err.message);
+                console.error(err);
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    </script>
+</body>
+</html>
