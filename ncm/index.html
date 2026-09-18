@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔓 NCM 格式在线解密器</title>
+    <title>🔓 NCM 格式解密工具</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-slate-800">🔓 NCM 格式在线解密器</h1>
-            <p class="text-sm text-slate-500 mt-1">本地还原真实音频数据 · 彻底修复播放报错</p>
+            <h1 class="text-2xl font-bold text-slate-800">🔓 NCM 格式转 MP3 / FLAC</h1>
+            <p class="text-sm text-slate-500 mt-1">本地纯算法硬解 · 自动修正文件头与格式识别</p>
         </div>
 
         <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
             <input type="file" id="fileInput" accept=".ncm" multiple class="hidden">
             <div class="space-y-2">
                 <div class="text-4xl">🎼</div>
-                <p class="text-sm font-medium text-slate-700">点击选择 NCM 文件 或 将文件拖拽到此处</p>
-                <p class="text-xs text-slate-400">支持批量转换</p>
+                <p class="text-sm font-medium text-slate-700">点击选择 NCM 文件 或 拖拽文件到这里</p>
+                <p class="text-xs text-slate-400">支持批量解密</p>
             </div>
         </div>
 
@@ -28,24 +28,20 @@
     </div>
 
     <script>
-        const CORE_KEY = new Uint8Array([0x68,0x78,0x64,0x52,0x6d,0x30,0x6f,0x17,0x63,0x78,0x34,0x31,0x6c,0x70,0x65,0x5b]);
+        // 网易云标准核心密钥
+        const CORE_KEY = CryptoJS.enc.Hex.parse("687864526d306f17637834316c70655b");
+        const META_KEY = CryptoJS.enc.Hex.parse("2331346C326B6F38235D6C3065563646");
 
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const fileList = document.getElementById('fileList');
 
         dropzone.addEventListener('click', () => fileInput.click());
-
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('border-indigo-500', 'bg-indigo-100/50');
-        });
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
-        });
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-indigo-500'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-indigo-500'));
         dropzone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
+            dropzone.classList.remove('border-indigo-500');
             if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
         });
 
@@ -57,66 +53,66 @@
             fileList.classList.remove('hidden');
             for (let file of files) {
                 if (!file.name.toLowerCase().endsWith('.ncm')) continue;
-                
+
                 const itemEl = document.createElement('div');
                 itemEl.className = 'p-3 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200 text-xs';
                 itemEl.innerHTML = `
-                    <span class="font-medium text-slate-700 truncate max-w-[220px]">${file.name}</span>
-                    <span class="status text-amber-600 font-bold">正在解密...</span>
+                    <span class="font-medium text-slate-700 truncate max-w-[200px]">${file.name}</span>
+                    <span class="status text-amber-600 font-bold">解密中...</span>
                 `;
                 fileList.appendChild(itemEl);
 
                 try {
-                    const result = await processNcmFile(file);
+                    const result = await decryptNcm(file);
                     const statusEl = itemEl.querySelector('.status');
-                    
                     const url = URL.createObjectURL(result.blob);
                     statusEl.outerHTML = `
                         <a href="${url}" download="${result.filename}" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold transition">
-                            📥 下载 ${result.ext.toUpperCase()}
+                            下载 ${result.ext.toUpperCase()}
                         </a>
                     `;
                 } catch (err) {
                     const statusEl = itemEl.querySelector('.status');
                     statusEl.className = 'text-red-500 font-bold';
-                    statusEl.innerText = '解密失败: ' + err.message;
+                    statusEl.innerText = '错误: ' + err.message;
                     console.error(err);
                 }
             }
         }
 
-        async function processNcmFile(file) {
-            const buffer = await file.arrayBuffer();
-            const view = new DataView(buffer);
+        async function decryptNcm(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const view = new DataView(arrayBuffer);
             let offset = 0;
 
-            // 1. 验证魔数 (CTEN)
-            const header = view.getUint32(0, true);
-            if (header !== 0x4e455443) throw new Error("非法的 NCM 文件格式");
-            offset += 10;
+            // 1. 检查魔数 Magic Header (CTEN)
+            const magic = view.getUint32(0, true);
+            if (magic !== 0x4e455443) throw new Error("文件损坏或非 NCM 格式");
+            offset += 10; // 跳过 Magic Header & Gap
 
-            // 2. 读取并 AES 解密 Key 块
+            // 2. 解密 RC4 S盒 Key
             const keyLen = view.getUint32(offset, true);
             offset += 4;
-            const keyData = new Uint8Array(buffer, offset, keyLen);
+            const keyCipherBytes = new Uint8Array(arrayBuffer, offset, keyLen);
             offset += keyLen;
 
-            for (let i = 0; i < keyData.length; i++) keyData[i] ^= 0x64;
+            for (let i = 0; i < keyCipherBytes.length; i++) keyCipherBytes[i] ^= 0x64;
 
-            const aesEcb = new aesjs.ModeOfOperation.ecb(CORE_KEY);
-            const decryptedKey = aesEcb.decrypt(keyData);
-            
-            // 剔除前缀 "neteasecloudmusic" (17字节)
-            const rawKeyBytes = decryptedKey.slice(17);
+            // AES-ECB 解密
+            const cipherWordArray = bytesToWordArray(keyCipherBytes);
+            const decryptedKeyWordArray = CryptoJS.AES.decrypt({ ciphertext: cipherWordArray }, CORE_KEY, {
+                mode: CryptoJS.mode.ECB,
+                padding: CryptoJS.pad.Pkcs7
+            });
 
-            // 关键补丁：必须按 16 进制转为真正的 Key 字节数组
-            const hexKeyStr = String.fromCharCode.apply(null, rawKeyBytes);
-            const keyBytes = new Uint8Array(hexKeyStr.length / 2);
-            for (let i = 0; i < hexKeyStr.length; i += 2) {
-                keyBytes[i / 2] = parseInt(hexKeyStr.substr(i, 2), 16);
+            // 提取 Key (跳过前缀 'neteasecloudmusic' 17 字节)
+            const keyUtf8 = CryptoJS.enc.Utf8.stringify(decryptedKeyWordArray).substring(17);
+            const keyBytes = new Uint8Array(keyUtf8.length);
+            for (let i = 0; i < keyUtf8.length; i++) {
+                keyBytes[i] = keyUtf8.charCodeAt(i);
             }
 
-            // 3. 构建标准 RC4 S 盒
+            // 3. 构建网易云变体 RC4 S 盒
             const S = new Uint8Array(256);
             for (let i = 0; i < 256; i++) S[i] = i;
             let j = 0;
@@ -125,47 +121,55 @@
                 let tmp = S[i]; S[i] = S[j]; S[j] = tmp;
             }
 
-            // 4. 跳过 Meta 属性与专辑封面
+            // 4. 读取与跳过 Metadata
             const metaLen = view.getUint32(offset, true);
             offset += 4;
             if (metaLen > 0) offset += metaLen;
 
-            offset += 5; // CRC & Gap
+            // 5. 跳过 CRC (5字节) 与 专辑封面 Chunk
+            offset += 5;
             const imgLen = view.getUint32(offset, true);
             offset += 4 + imgLen;
 
-            // 5. 还原真正的音频比特流 (RC4 变体解密)
-            const audioData = new Uint8Array(buffer.slice(offset));
-            const streamKey = new Uint8Array(256);
-            for (let i = 0; i < 256; i++) {
-                streamKey[i] = S[(S[i] + S[(i + S[i]) & 0xff]) & 0xff];
+            // 6. 解密完整音频数据流
+            const rawAudio = new Uint8Array(arrayBuffer.slice(offset));
+            const audioData = new Uint8Array(rawAudio.length);
+
+            for (let i = 0; i < rawAudio.length; i++) {
+                const j = (i + 1) & 0xff;
+                const k = S[(S[j] + S[(S[j] + j) & 0xff]) & 0xff];
+                audioData[i] = rawAudio[i] ^ k;
             }
 
-            for (let i = 0; i < audioData.length; i++) {
-                audioData[i] ^= streamKey[i & 0xff];
-            }
-
-            // 6. 识别真正的音频文件格式 (MP3 / FLAC)
+            // 7. 动态判断真实文件格式 (FLAC / MP3)
             let ext = "mp3";
             let mimeType = "audio/mpeg";
 
+            // FLAC 文件头 Marker: fLaC
             if (audioData.length > 4 && 
-                audioData[0] === 0x66 && 
-                audioData[1] === 0x4c && 
-                audioData[2] === 0x61 && 
-                audioData[3] === 0x43) {
+                audioData[0] === 0x66 && audioData[1] === 0x4c && 
+                audioData[2] === 0x61 && audioData[3] === 0x43) {
                 ext = "flac";
                 mimeType = "audio/flac";
             }
 
             const blob = new Blob([audioData], { type: mimeType });
-            const originalName = file.name.replace(/\.ncm$/i, '');
-            
+            const cleanName = file.name.replace(/\.ncm$/i, '');
+
             return {
                 blob: blob,
-                filename: `${originalName}.${ext}`,
+                filename: `${cleanName}.${ext}`,
                 ext: ext
             };
+        }
+
+        // 辅助转码工具类
+        function bytesToWordArray(bytes) {
+            const words = [];
+            for (let i = 0; i < bytes.length; i++) {
+                words[i >>> 2] |= (bytes[i] & 0xff) << (24 - (i % 4) * 8);
+            }
+            return CryptoJS.lib.WordArray.create(words, bytes.length);
         }
     </script>
 </body>
