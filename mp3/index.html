@@ -3,10 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校园广播电视台在线音频格式转换器</title>
+    <title>校园广播电视台音频转换工具</title>
+
+    <!-- 解决 SharedArrayBuffer 报错的自动 Header 补丁 -->
+    <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
+
     <!-- Tailwind CSS 样式库 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FFmpeg.wasm 核心库 (v0.10.1 无需配置复杂的跨域 Header 即可运行) -->
+    <!-- FFmpeg.wasm 核心库 -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
@@ -15,7 +19,7 @@
         <!-- 头部标题 -->
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-slate-800">在线音频格式转换器</h1>
-            <p class="text-sm text-slate-500 mt-1">校园广播电视台音频工具</p>
+            <p class="text-sm text-slate-500 mt-1">校园广播电视台音频转换工具</p>
         </div>
 
         <!-- 1. 文件上传区域 -->
