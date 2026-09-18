@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 NCM 格式在线解密转换器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 AES 解密库 CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800">🔓 NCM 格式在线解密器</h1>
+            <p class="text-sm text-slate-500 mt-1">本地直接将 NCM 还原为 MP3 / FLAC · 速度极快 · 保护隐私</p>
+        </div>
+
+        <!-- 文件上传区域 -->
+        <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
+            <input type="file" id="fileInput" accept=".ncm" multiple class="hidden">
+            <div class="space-y-2">
+                <div class="text-4xl">🎼</div>
+                <p class="text-sm font-medium text-slate-700">点击选择 NCM 文件 或 将文件拖拽到此处</p>
+                <p class="text-xs text-slate-400">支持批量选择多个文件操作</p>
+            </div>
+        </div>
+
+        <!-- 处理列表 -->
+        <div id="fileList" class="mt-6 space-y-3 max-h-60 overflow-y-auto hidden"></div>
+    </div>
+
+    <script>
+        // 网易云 NCM 固定的 AES 密钥
+        const CORE_KEY = CryptoJS.enc.Hex.parse("687864526d306f17637834316c70655b");
+        const META_KEY = CryptoJS.enc.Hex.parse("2363783723616c31656e50527542691d");
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-indigo-500', 'bg-indigo-100/50');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-100/50');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        async function handleFiles(files) {
+            fileList.classList.remove('hidden');
+            for (let file of files) {
+                if (!file.name.endsWith('.ncm')) continue;
+                
+                const itemEl = document.createElement('div');
+                itemEl.className = 'p-3 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200 text-xs';
+                itemEl.innerHTML = `
+                    <span class="font-medium text-slate-700 truncate max-w-[200px]">${file.name}</span>
+                    <span class="status text-amber-600">正在解密...</span>
+                `;
+                fileList.appendChild(itemEl);
+
+                try {
+                    const result = await processNcmFile(file);
+                    const statusEl = itemEl.querySelector('.status');
+                    
+                    const url = URL.createObjectURL(result.blob);
+                    statusEl.outerHTML = `
+                        <a href="${url}" download="${result.filename}" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold transition">
+                            📥 下载 ${result.ext.toUpperCase()}
+                        </a>
+                    `;
+                } catch (err) {
+                    itemEl.querySelector('.status').className = 'text-red-500';
+                    itemEl.querySelector('.status').innerText = '解密失败';
+                    console.error(err);
+                }
+            }
+        }
+
+        // NCM 文件解密算法核心
+        async function processNcmFile(file) {
+            const buffer = await file.arrayBuffer();
+            const view = new DataView(buffer);
+            let offset = 0;
+
+            // 1. 验证 Magic Header (CTENFDAM)
+            const header = view.getUint32(0, true);
+            if (header !== 0x4e455443) throw new Error("非法的 NCM 文件");
+            offset += 10; // 跳过 8 字节 header + 2 字节 gap
+
+            // 2. 解密 Key 密钥数据
+            const keyLen = view.getUint32(offset, true);
+            offset += 4;
+            const keyData = new Uint8Array(buffer, offset, keyLen);
+            offset += keyLen;
+
+            for (let i = 0; i < keyData.length; i++) keyData[i] ^= 0x64;
+
+            const decryptedKeyWordArray = CryptoJS.AES.decrypt(
+                { ciphertext: CryptoJS.lib.WordArray.create(keyData) },
+                CORE_KEY,
+                { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
+            );
+
+            // 将 wordArray 转换为 Uint8Array 密钥序列
+            const keyBytes = wordArrayToUint8Array(decryptedKeyWordArray).slice(17); // 剪裁 "neteasecloudmusic" 前缀
+            
+            // 构建 RC4 S-Box
+            const S = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) S[i] = i;
+            let j = 0;
+            for (let i = 0; i < 256; i++) {
+                j = (j + S[i] + keyBytes[i % keyBytes.length]) & 0xff;
+                let tmp = S[i]; S[i] = S[j]; S[j] = tmp;
+            }
+
+            // 3. 读取 Meta 元数据（包含格式信息如 MP3 或 FLAC）
+            const metaLen = view.getUint32(offset, true);
+            offset += 4;
+            let ext = "mp3";
+
+            if (metaLen > 0) {
+                const metaData = new Uint8Array(buffer, offset, metaLen);
+                offset += metaLen;
+                for (let i = 0; i < metaData.length; i++) metaData[i] ^= 0x63;
+                
+                // base64 decode 拼接
+                const metaBase64 = String.fromCharCode.apply(null, metaData.slice(22));
+                const metaWordArray = CryptoJS.AES.decrypt(
+                    { ciphertext: CryptoJS.enc.Base64.parse(metaBase64) },
+                    META_KEY,
+                    { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
+                );
+                const metaJsonStr = CryptoJS.enc.Utf8.stringify(metaWordArray);
+                if (metaJsonStr) {
+                    const meta = JSON.parse(metaJsonStr.replace("music:", ""));
+                    ext = meta.format || "mp3";
+                }
+            }
+
+            // 跳过 CRC / 专辑封面图片数据
+            offset += 5; // CRC(4) + Gap(1)
+            const imgLen = view.getUint32(offset, true);
+            offset += 4 + imgLen;
+
+            // 4. 解密核心音频 Payload
+            const audioData = new Uint8Array(buffer, offset);
+            const K = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) {
+                K[i] = S[(S[i] + S[(i + S[i]) & 0xff]) & 0xff];
+            }
+
+            for (let i = 0; i < audioData.length; i++) {
+                audioData[i] ^= K[i & 0xff];
+            }
+
+            const blob = new Blob([audioData], { type: `audio/${ext}` });
+            const originalName = file.name.replace(/\.ncm$/i, '');
+            
+            return {
+                blob: blob,
+                filename: `${originalName}.${ext}`,
+                ext: ext
+            };
+        }
+
+        function wordArrayToUint8Array(wordArray) {
+            const words = wordArray.words;
+            const sigBytes = wordArray.sigBytes;
+            const u8 = new Uint8Array(sigBytes);
+            let offset = 0;
+            for (let i = 0; i < sigBytes; i++) {
+                const byte = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+                u8[offset++] = byte;
+            }
+            return u8;
+        }
+    </script>
+</body>
+</html>
