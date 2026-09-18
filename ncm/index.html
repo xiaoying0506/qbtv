@@ -3,20 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 NCM 格式在线解密转换器</title>
+    <title>🎵 NCM 格式在线解密器</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 AES 解密库 CryptoJS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6 sm:p-8">
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-slate-800">🔓 NCM 格式在线解密器</h1>
-            <p class="text-sm text-slate-500 mt-1">本地直接将 NCM 还原为 MP3 / FLAC · 速度极快 · 保护隐私</p>
+            <p class="text-sm text-slate-500 mt-1">本地直接将 NCM 还原为 MP3 / FLAC · 纯原生零依赖</p>
         </div>
 
-        <!-- 文件上传区域 -->
         <div id="dropzone" class="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center hover:border-indigo-500 transition cursor-pointer bg-indigo-50/30">
             <input type="file" id="fileInput" accept=".ncm" multiple class="hidden">
             <div class="space-y-2">
@@ -26,14 +23,11 @@
             </div>
         </div>
 
-        <!-- 处理列表 -->
         <div id="fileList" class="mt-6 space-y-3 max-h-60 overflow-y-auto hidden"></div>
     </div>
 
     <script>
-        // 网易云 NCM 固定的 AES 密钥
-        const CORE_KEY = CryptoJS.enc.Hex.parse("687864526d306f17637834316c70655b");
-        const META_KEY = CryptoJS.enc.Hex.parse("2363783723616c31656e50527542691d");
+        const CORE_KEY = new Uint8Array([0x68,0x78,0x64,0x52,0x6d,0x30,0x6f,0x17,0x63,0x78,0x34,0x31,0x6c,0x70,0x65,0x5b]);
 
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -61,13 +55,13 @@
         async function handleFiles(files) {
             fileList.classList.remove('hidden');
             for (let file of files) {
-                if (!file.name.endsWith('.ncm')) continue;
+                if (!file.name.toLowerCase().endsWith('.ncm')) continue;
                 
                 const itemEl = document.createElement('div');
                 itemEl.className = 'p-3 bg-slate-50 rounded-lg flex items-center justify-between border border-slate-200 text-xs';
                 itemEl.innerHTML = `
-                    <span class="font-medium text-slate-700 truncate max-w-[200px]">${file.name}</span>
-                    <span class="status text-amber-600">正在解密...</span>
+                    <span class="font-medium text-slate-700 truncate max-w-[220px]">${file.name}</span>
+                    <span class="status text-amber-600 font-bold">正在解密...</span>
                 `;
                 fileList.appendChild(itemEl);
 
@@ -82,25 +76,23 @@
                         </a>
                     `;
                 } catch (err) {
-                    itemEl.querySelector('.status').className = 'text-red-500';
-                    itemEl.querySelector('.status').innerText = '解密失败';
+                    const statusEl = itemEl.querySelector('.status');
+                    statusEl.className = 'text-red-500 font-bold';
+                    statusEl.innerText = '解密失败';
                     console.error(err);
                 }
             }
         }
 
-        // NCM 文件解密算法核心
         async function processNcmFile(file) {
             const buffer = await file.arrayBuffer();
             const view = new DataView(buffer);
             let offset = 0;
 
-            // 1. 验证 Magic Header (CTENFDAM)
             const header = view.getUint32(0, true);
             if (header !== 0x4e455443) throw new Error("非法的 NCM 文件");
-            offset += 10; // 跳过 8 字节 header + 2 字节 gap
+            offset += 10;
 
-            // 2. 解密 Key 密钥数据
             const keyLen = view.getUint32(offset, true);
             offset += 4;
             const keyData = new Uint8Array(buffer, offset, keyLen);
@@ -108,16 +100,9 @@
 
             for (let i = 0; i < keyData.length; i++) keyData[i] ^= 0x64;
 
-            const decryptedKeyWordArray = CryptoJS.AES.decrypt(
-                { ciphertext: CryptoJS.lib.WordArray.create(keyData) },
-                CORE_KEY,
-                { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
-            );
+            const decryptedKey = await aesEcbDecrypt(CORE_KEY, keyData);
+            const keyBytes = decryptedKey.slice(17);
 
-            // 将 wordArray 转换为 Uint8Array 密钥序列
-            const keyBytes = wordArrayToUint8Array(decryptedKeyWordArray).slice(17); // 剪裁 "neteasecloudmusic" 前缀
-            
-            // 构建 RC4 S-Box
             const S = new Uint8Array(256);
             for (let i = 0; i < 256; i++) S[i] = i;
             let j = 0;
@@ -126,37 +111,24 @@
                 let tmp = S[i]; S[i] = S[j]; S[j] = tmp;
             }
 
-            // 3. 读取 Meta 元数据（包含格式信息如 MP3 或 FLAC）
             const metaLen = view.getUint32(offset, true);
             offset += 4;
             let ext = "mp3";
-
             if (metaLen > 0) {
-                const metaData = new Uint8Array(buffer, offset, metaLen);
                 offset += metaLen;
-                for (let i = 0; i < metaData.length; i++) metaData[i] ^= 0x63;
-                
-                // base64 decode 拼接
-                const metaBase64 = String.fromCharCode.apply(null, metaData.slice(22));
-                const metaWordArray = CryptoJS.AES.decrypt(
-                    { ciphertext: CryptoJS.enc.Base64.parse(metaBase64) },
-                    META_KEY,
-                    { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
-                );
-                const metaJsonStr = CryptoJS.enc.Utf8.stringify(metaWordArray);
-                if (metaJsonStr) {
-                    const meta = JSON.parse(metaJsonStr.replace("music:", ""));
-                    ext = meta.format || "mp3";
-                }
             }
 
-            // 跳过 CRC / 专辑封面图片数据
-            offset += 5; // CRC(4) + Gap(1)
+            offset += 5; 
             const imgLen = view.getUint32(offset, true);
             offset += 4 + imgLen;
 
-            // 4. 解密核心音频 Payload
             const audioData = new Uint8Array(buffer, offset);
+            
+            // 检查文件头确定后缀
+            if (audioData.length > 4 && audioData[0] === 0x66 && audioData[1] === 0x4c && audioData[2] === 0x61 && audioData[3] === 0x43) {
+                ext = "flac";
+            }
+
             const K = new Uint8Array(256);
             for (let i = 0; i < 256; i++) {
                 K[i] = S[(S[i] + S[(i + S[i]) & 0xff]) & 0xff];
@@ -164,6 +136,12 @@
 
             for (let i = 0; i < audioData.length; i++) {
                 audioData[i] ^= K[i & 0xff];
+            }
+
+            if (audioData[0] === 0x66 && audioData[1] === 0x4c && audioData[2] === 0x61 && audioData[3] === 0x43) {
+                ext = "flac";
+            } else {
+                ext = "mp3";
             }
 
             const blob = new Blob([audioData], { type: `audio/${ext}` });
@@ -176,16 +154,31 @@
             };
         }
 
-        function wordArrayToUint8Array(wordArray) {
-            const words = wordArray.words;
-            const sigBytes = wordArray.sigBytes;
-            const u8 = new Uint8Array(sigBytes);
-            let offset = 0;
-            for (let i = 0; i < sigBytes; i++) {
-                const byte = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
-                u8[offset++] = byte;
+        async function aesEcbDecrypt(key, ciphertext) {
+            const cryptoKey = await crypto.subtle.importKey(
+                "raw", key, { name: "AES-ECB" }, false, ["decrypt"]
+            ).catch(async () => {
+                return await crypto.subtle.importKey(
+                    "raw", key, { name: "AES-CBC" }, false, ["decrypt"]
+                );
+            });
+
+            try {
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-ECB" },
+                    cryptoKey,
+                    ciphertext
+                );
+                return new Uint8Array(decrypted);
+            } catch (e) {
+                const iv = new Uint8Array(16);
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-CBC", iv: iv },
+                    cryptoKey,
+                    ciphertext
+                );
+                return new Uint8Array(decrypted);
             }
-            return u8;
         }
     </script>
 </body>
