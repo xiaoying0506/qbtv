@@ -139,7 +139,7 @@
 </head>
 <body>
 
-    <!-- 0. 运动会征集规则弹窗（完整保留规则） -->
+    <!-- 0. 运动会征集规则弹窗 -->
     <div id="ruleModal" class="modal-overlay">
         <div class="modal-card">
             <div style="font-size: 3rem; margin-bottom: 10px;">🏃‍♂️🔥</div>
@@ -147,8 +147,8 @@
             <div class="rule-box">
                 <p><strong>亲爱的同学们：</strong></p>
                 <p>1. <strong>点歌规则：</strong>每位同学在本次活动期间<strong>只有 1 次点歌机会</strong>，提交后不可撤回，请谨慎选择！</p>
-                <p>2. <strong>曲目要求：</strong>本次征集歌曲可以是激昂的歌曲，但歌曲要积极正能量，不要包含色情、暴力等不良因素</p>
-                <p>3. <strong>审核机制：</strong>投稿提交后，请耐心等待审核，你可在我的点个记录中查看歌曲当前状态，审核通过后的所有歌曲将会在页面播放单中进行公示，如有疑问，可以向校园广播电视台进行举报！</p>
+                <p>2. <strong>曲目要求：</strong>本次征集歌曲可以是激昂的歌曲，但歌曲要积极正能量，不要包含色情、暴力等不良因素。</p>
+                <p>3. <strong>审核机制：</strong>投稿提交后，请耐心等待审核，你可在我的点歌记录中查看歌曲当前状态，审核通过后的所有歌曲将会在页面播放单中进行公示，如有疑问，可以向校园广播电视台进行举报！</p>
             </div>
             <button class="btn-submit" onclick="closeRuleModal()">我已阅读并同意规则</button>
         </div>
@@ -184,7 +184,7 @@
         </div>
     </div>
 
-    <!-- 2. 主应用模块 (左右正确两栏分布) -->
+    <!-- 2. 主应用模块 (左右两栏分布) -->
     <div id="appSection" class="container hidden">
         <!-- 左侧：公告栏 + 点歌表单 + 个人点歌历史 -->
         <div>
@@ -194,7 +194,7 @@
                 <div class="notice-content" id="noticeText">加载公告中...</div>
             </div>
 
-            <!-- 点歌表单（结构已彻底修正） -->
+            <!-- 点歌表单 -->
             <div class="card">
                 <h2>🎵 运动会点歌 <span id="limitHint" class="limit-hint">每人仅限 1 次</span></h2>
                 <form id="songForm">
@@ -324,7 +324,7 @@
             await db.auth.signOut();
         }
 
-        // 3. 加载广播台最新公告 (使用活动专属表 sport2026_announcements)
+        // 3. 加载广播台最新公告
         async function fetchNotice() {
             const { data, error } = await db
                 .from('sport2026_announcements')
@@ -341,7 +341,7 @@
             }
         }
 
-        // 查询用户历史提交总数（使用活动专属表 sport2026_songs）
+        // 查询用户历史提交总数
         async function getUserSongCount() {
             const { count, error } = await db
                 .from('sport2026_songs')
@@ -398,7 +398,7 @@
                         ${statusBadge}
                         ${audioPlayer}
                     </div>
-                    <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="toggleVote(${song.id}, ${song.votes}, ${isVoted})">
+                    <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="toggleVote(${song.id}, ${song.votes || 0}, ${isVoted})">
                         ❤️ <span>${song.votes || 0}</span>
                     </button>
                 `;
@@ -473,7 +473,7 @@
             });
         }
 
-        // 6. 提交点歌处理（容错强化，防死锁）
+        // 6. 提交点歌处理
         document.getElementById('songForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
@@ -509,7 +509,6 @@
                     audioUrl = publicUrlData.publicUrl;
                 }
 
-                // 数据库提交（完全去除了未定义的字段，且加上了表名前缀）
                 const { error } = await db.from('sport2026_songs').insert([{
                     class_and_name: document.getElementById('classAndName').value,
                     song_name: document.getElementById('songName').value,
@@ -531,7 +530,6 @@
             } catch (err) {
                 alert(err.message || '提交失败，请重试');
             } finally {
-                // 恢复按钮，防止卡死
                 if (await getUserSongCount() < 1) {
                     btn.disabled = false;
                     btn.innerText = '提交运动会点歌';
@@ -551,6 +549,7 @@
             fetchPublicSongs();
         }
 
+        // XSS 过滤辅助函数
         function escapeHtml(str) {
             return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
