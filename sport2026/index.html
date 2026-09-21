@@ -78,10 +78,11 @@
         .notice-card .notice-icon { font-size: 1.2rem; }
         .notice-card .notice-content { flex: 1; line-height: 1.4; }
 
-        /* 主界面网格布局 */
+        /* 主界面网格布局：左右两栏对齐 */
         .container {
             max-width: 1000px; margin: 20px auto 0 auto; padding: 0 15px;
             display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+            align-items: start;
         }
 
         @media (max-width: 768px) { 
@@ -116,7 +117,6 @@
         .song-info { flex: 1; padding-right: 10px; }
         .song-title { font-weight: bold; font-size: 1rem; }
         .song-artist { font-size: 0.85rem; color: #747d8c; margin-top: 2px; }
-        .song-reason { font-size: 0.8rem; color: #ff9f43; margin-top: 4px; font-style: italic; }
 
         audio { margin-top: 8px; width: 100%; max-height: 32px; }
 
@@ -139,7 +139,7 @@
 </head>
 <body>
 
-    <!-- 0. 运动会征集规则弹窗 -->
+    <!-- 0. 运动会征集规则弹窗（完整保留规则） -->
     <div id="ruleModal" class="modal-overlay">
         <div class="modal-card">
             <div style="font-size: 3rem; margin-bottom: 10px;">🏃‍♂️🔥</div>
@@ -184,7 +184,7 @@
         </div>
     </div>
 
-    <!-- 2. 主应用模块 (默认隐藏) -->
+    <!-- 2. 主应用模块 (左右正确两栏分布) -->
     <div id="appSection" class="container hidden">
         <!-- 左侧：公告栏 + 点歌表单 + 个人点歌历史 -->
         <div>
@@ -194,7 +194,7 @@
                 <div class="notice-content" id="noticeText">加载公告中...</div>
             </div>
 
-            <!-- 点歌表单 -->
+            <!-- 点歌表单（结构已彻底修正） -->
             <div class="card">
                 <h2>🎵 运动会点歌 <span id="limitHint" class="limit-hint">每人仅限 1 次</span></h2>
                 <form id="songForm">
@@ -209,6 +209,7 @@
                     <div class="form-group">
                         <label for="artist">演唱歌手 *</label>
                         <input type="text" id="artist" placeholder="例如：零点乐队" required>
+                    </div>
                     <div class="form-group">
                         <label for="musicFile">音频文件 (选填, mp3/wav)</label>
                         <input type="file" id="musicFile" accept="audio/*">
@@ -323,10 +324,10 @@
             await db.auth.signOut();
         }
 
-        // 3. 加载广播台最新公告
+        // 3. 加载广播台最新公告 (使用活动专属表 sport2026_announcements)
         async function fetchNotice() {
             const { data, error } = await db
-                .from('announcements')
+                .from('sport2026_announcements')
                 .select('content')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
@@ -340,10 +341,10 @@
             }
         }
 
-        // 查询用户历史提交总数（每人限 1 次）
+        // 查询用户历史提交总数（使用活动专属表 sport2026_songs）
         async function getUserSongCount() {
             const { count, error } = await db
-                .from('songs')
+                .from('sport2026_songs')
                 .select('id', { count: 'exact', head: true })
                 .eq('voter_id', currentUser.id);
 
@@ -355,7 +356,7 @@
             const publicListEl = document.getElementById('publicSongList');
 
             const { data: songs, error } = await db
-                .from('songs')
+                .from('sport2026_songs')
                 .select('*')
                 .in('status', ['approved', 'played'])
                 .order('votes', { ascending: false });
@@ -372,7 +373,7 @@
 
             const songIds = songs.map(s => s.id);
             const { data: userVotes } = await db
-                .from('song_votes')
+                .from('sport2026_song_votes')
                 .select('song_id')
                 .eq('voter_id', currentUser.id)
                 .in('song_id', songIds);
@@ -389,13 +390,11 @@
                 let statusBadge = song.status === 'played' 
                     ? `<span class="status-badge status-played">📻 现场已播放</span>` 
                     : `<span class="status-badge status-approved">🟢 审核通过 / 待播放</span>`;
-                let reasonHtml = song.reason ? `<div class="song-reason">💬 "${escapeHtml(song.reason)}"</div>` : '';
 
                 li.innerHTML = `
                     <div class="song-info">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
                         <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || '匿名')}</div>
-                        ${reasonHtml}
                         ${statusBadge}
                         ${audioPlayer}
                     </div>
@@ -407,7 +406,7 @@
             });
         }
 
-        // 5. 加载“我的点歌记录”并校验每个人唯一额度
+        // 5. 加载“我的点歌记录”
         async function fetchMyHistory() {
             const historyListEl = document.getElementById('myHistoryList');
             const submitBtn = document.getElementById('submitBtn');
@@ -418,10 +417,15 @@
                 submitBtn.disabled = true;
                 submitBtn.innerText = '您已完成运动会点歌 (每人限1次)';
                 submitBtn.style.backgroundColor = '#b2bec3';
+            } else {
+                document.getElementById('limitHint').innerText = '每人仅限 1 次';
+                submitBtn.disabled = false;
+                submitBtn.innerText = '提交运动会点歌';
+                submitBtn.style.backgroundColor = 'var(--primary-color)';
             }
 
             const { data: mySongs, error } = await db
-                .from('songs')
+                .from('sport2026_songs')
                 .select('*')
                 .eq('voter_id', currentUser.id)
                 .order('created_at', { ascending: false });
@@ -469,74 +473,80 @@
             });
         }
 
-        // 6. 提交点歌处理（严格限制每个人仅 1 次）
+        // 6. 提交点歌处理（容错强化，防死锁）
         document.getElementById('songForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
 
-            const count = await getUserSongCount();
-            if (count >= 1) {
-                alert('⚠️ 每位同学在运动会期间仅有 1 次点歌机会，请勿重复提交！');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = '正在提交...';
-
-            let audioUrl = '';
-            const fileInput = document.getElementById('musicFile');
-            const file = fileInput.files[0];
-
-            if (file) {
-                const fileName = `${Date.now()}_${file.name}`;
-                const { error: uploadError } = await db.storage
-                    .from('music-files')
-                    .upload(fileName, file);
-
-                if (uploadError) {
-                    alert('音频上传失败: ' + uploadError.message);
-                    btn.disabled = false;
-                    btn.innerText = '提交运动会点歌';
+            try {
+                const count = await getUserSongCount();
+                if (count >= 1) {
+                    alert('⚠️ 每位同学在运动会期间仅有 1 次点歌机会，请勿重复提交！');
                     return;
                 }
 
-                const { data: publicUrlData } = db.storage
-                    .from('music-files')
-                    .getPublicUrl(fileName);
+                btn.disabled = true;
+                btn.innerText = '正在提交...';
 
-                audioUrl = publicUrlData.publicUrl;
-            }
+                let audioUrl = '';
+                const fileInput = document.getElementById('musicFile');
+                const file = fileInput.files ? fileInput.files[0] : null;
 
-            const { error } = await db.from('songs').insert([{
-                class_and_name: document.getElementById('classAndName').value,
-                song_name: document.getElementById('songName').value,
-                artist: document.getElementById('artist').value,
-                reason: document.getElementById('reason').value,
-                audio_url: audioUrl,
-                status: 'pending',
-                voter_id: currentUser.id, 
-                votes: 0
-            }]);
+                if (file) {
+                    const fileName = `${Date.now()}_${file.name}`;
+                    const { error: uploadError } = await db.storage
+                        .from('sport2026-music')
+                        .upload(fileName, file);
 
-            if (error) {
-                alert('提交失败: ' + error.message);
-                btn.disabled = false;
-                btn.innerText = '提交运动会点歌';
-            } else {
+                    if (uploadError) {
+                        throw new Error('音频上传失败: ' + uploadError.message);
+                    }
+
+                    const { data: publicUrlData } = db.storage
+                        .from('sport2026-music')
+                        .getPublicUrl(fileName);
+
+                    audioUrl = publicUrlData.publicUrl;
+                }
+
+                // 数据库提交（完全去除了未定义的字段，且加上了表名前缀）
+                const { error } = await db.from('sport2026_songs').insert([{
+                    class_and_name: document.getElementById('classAndName').value,
+                    song_name: document.getElementById('songName').value,
+                    artist: document.getElementById('artist').value,
+                    audio_url: audioUrl,
+                    status: 'pending',
+                    voter_id: currentUser.id, 
+                    votes: 0
+                }]);
+
+                if (error) {
+                    throw new Error('提交失败: ' + error.message);
+                }
+
                 alert('🎉 提交成功！请等待广播站审核。');
                 this.reset();
                 fetchMyHistory();
+
+            } catch (err) {
+                alert(err.message || '提交失败，请重试');
+            } finally {
+                // 恢复按钮，防止卡死
+                if (await getUserSongCount() < 1) {
+                    btn.disabled = false;
+                    btn.innerText = '提交运动会点歌';
+                }
             }
         });
 
         // 7. 点赞逻辑
         async function toggleVote(songId, currentVotes, isVoted) {
             if (isVoted) {
-                await db.from('song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
-                await db.from('songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
+                await db.from('sport2026_song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
+                await db.from('sport2026_songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
             } else {
-                await db.from('song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
-                await db.from('songs').update({ votes: currentVotes + 1 }).eq('id', songId);
+                await db.from('sport2026_song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
+                await db.from('sport2026_songs').update({ votes: currentVotes + 1 }).eq('id', songId);
             }
             fetchPublicSongs();
         }
