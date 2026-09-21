@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校园点歌</title>
+    <title>🏃 校园运动会背景音乐征集</title>
     <link rel="shortcut icon" href="logo.png" type="image/x-icon">
     <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --primary-color: #6c5ce7;
-            --secondary-color: #a29bfe;
+            --primary-color: #ff6b6b;
+            --secondary-color: #feca57;
             --dark-color: #2d3436;
             --light-color: #f8f9fa;
             --accent-color: #ff7675;
@@ -23,7 +23,7 @@
         body { background-color: #f1f2f6; color: var(--dark-color); padding-bottom: 50px; }
 
         header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: linear-gradient(135deg, #ff6b6b, #ff9f43);
             color: white; text-align: center; padding: 25px 20px;
             position: relative;
         }
@@ -42,34 +42,38 @@
         }
         .btn-logout:hover { background: #f0f0f0; }
 
+        /* 规则弹窗样式 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000; padding: 20px;
+        }
+        .modal-card {
+            background: white; border-radius: 16px; padding: 25px; max-width: 480px; width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center;
+        }
+        .modal-title { font-size: 1.4rem; font-weight: bold; margin-bottom: 12px; color: #2d3436; }
+        .rule-box {
+            background: #f8f9fa; border: 1px solid #dfe4ea; border-radius: 10px;
+            padding: 15px; text-align: left; font-size: 0.88rem; line-height: 1.6; color: #57606f;
+            max-height: 220px; overflow-y: auto; margin-bottom: 20px;
+        }
+
         /* 登录卡片布局 */
-        .auth-container {
-            max-width: 400px; margin: 60px auto; padding: 0 15px;
-        }
-        .auth-tabs {
-            display: flex; margin-bottom: 20px; border-bottom: 2px solid #dfe4ea;
-        }
+        .auth-container { max-width: 400px; margin: 60px auto; padding: 0 15px; }
+        .auth-tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #dfe4ea; }
         .auth-tab {
             flex: 1; text-align: center; padding: 10px; cursor: pointer;
             font-weight: bold; color: #747d8c;
         }
-        .auth-tab.active {
-            color: var(--primary-color); border-bottom: 3px solid var(--primary-color);
-        }
+        .auth-tab.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); }
 
         /* 公告栏样式 */
         .notice-card {
-            background-color: var(--notice-bg);
-            border: 1px solid var(--notice-border);
-            border-left: 5px solid var(--notice-text);
-            padding: 12px 18px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9rem;
-            color: #495057;
+            background-color: var(--notice-bg); border: 1px solid var(--notice-border);
+            border-left: 5px solid var(--notice-text); padding: 12px 18px; border-radius: 8px;
+            margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #495057;
         }
         .notice-card .notice-icon { font-size: 1.2rem; }
         .notice-card .notice-content { flex: 1; line-height: 1.4; }
@@ -87,22 +91,22 @@
         }
 
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--primary-color); border-bottom: 2px solid var(--light-color); padding-bottom: 8px; }
+        .card h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--primary-color); border-bottom: 2px solid #f1f2f6; padding-bottom: 8px; }
 
-        .limit-hint {
-            font-size: 0.8rem; color: #888; font-weight: normal; margin-left: 8px;
-        }
+        .limit-hint { font-size: 0.8rem; color: #ff6b6b; font-weight: bold; margin-left: 8px; }
 
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; }
-        .form-group input { width: 100%; padding: 10px; border: 1px solid #dfe4ea; border-radius: 6px; font-size: 0.9rem; }
+        .form-group input, .form-group textarea {
+            width: 100%; padding: 10px; border: 1px solid #dfe4ea; border-radius: 6px; font-size: 0.9rem;
+        }
 
         .btn-submit {
             width: 100%; background-color: var(--primary-color); color: white;
-            border: none; padding: 10px; font-size: 0.95rem; font-weight: bold;
+            border: none; padding: 11px; font-size: 0.95rem; font-weight: bold;
             border-radius: 6px; cursor: pointer; transition: 0.2s;
         }
-        .btn-submit:hover { background-color: #5b4cc4; }
+        .btn-submit:hover { background-color: #ee5253; }
 
         .song-list { list-style: none; max-height: 400px; overflow-y: auto; }
         .song-item {
@@ -112,7 +116,8 @@
         .song-info { flex: 1; padding-right: 10px; }
         .song-title { font-weight: bold; font-size: 1rem; }
         .song-artist { font-size: 0.85rem; color: #747d8c; margin-top: 2px; }
-        
+        .song-reason { font-size: 0.8rem; color: #ff9f43; margin-top: 4px; font-style: italic; }
+
         audio { margin-top: 8px; width: 100%; max-height: 32px; }
 
         .vote-btn {
@@ -123,23 +128,34 @@
         .vote-btn.voted { background-color: var(--accent-color); color: white; }
 
         /* 状态标签样式 */
-        .status-badge {
-            display: inline-block; padding: 3px 8px; border-radius: 12px;
-            font-size: 0.75rem; font-weight: bold; margin-top: 5px;
-        }
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-top: 5px; }
         .status-pending { background-color: #ffeaa7; color: #d63031; }
         .status-approved { background-color: #55efc4; color: #008148; }
         .status-played { background-color: #a29bfe; color: #2d3436; }
         .status-rejected { background-color: #ff7675; color: #ffffff; }
 
-        /* 隐藏元素的辅助类 */
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
+    <!-- 0. 运动会征集规则弹窗 -->
+    <div id="ruleModal" class="modal-overlay">
+        <div class="modal-card">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🏃‍♂️🔥</div>
+            <div class="modal-title">校园运动会背景音乐征集须知</div>
+            <div class="rule-box">
+                <p><strong>亲爱的同学们：</strong></p>
+                <p>1. <strong>唯一额度：</strong>每位同学在整个运动会期间<strong>只有 1 次点歌机会</strong>，提交后不可撤回，请谨慎选择！</p>
+                <p>2. <strong>曲目要求：</strong>请选择节奏明快、充满激情、内容健康向上的正能量歌曲，为赛场健儿加油打气！</p>
+                <p>3. <strong>审核机制：</strong>提交后将由广播站统一审核，通过后会在运动会现场播放并呈现在公开榜单。</p>
+            </div>
+            <button class="btn-submit" onclick="closeRuleModal()">我已阅读并同意规则</button>
+        </div>
+    </div>
+
     <header>
-        <h1>校园点歌</h1>
+        <h1>🏃 校园运动会背景音乐征集</h1>
         <div id="userBar" class="user-bar hidden">
             <span id="userEmail"></span>
             <button class="btn-logout" onclick="handleLogout()">退出登录</button>
@@ -180,27 +196,35 @@
 
             <!-- 点歌表单 -->
             <div class="card">
-                <h2>🎵 提交点歌 <span id="weekLimitHint" class="limit-hint">本周已用 0/2 次额度</span></h2>
+                <h2>🎵 运动会点歌 <span id="limitHint" class="limit-hint">每人仅限 1 次</span></h2>
                 <form id="songForm">
                     <div class="form-group">
+                        <label for="classAndName">班级 / 姓名 *</label>
+                        <input type="text" id="classAndName" placeholder="例如：高二(3)班 张三" required>
+                    </div>
+                    <div class="form-group">
                         <label for="songName">歌曲名称 *</label>
-                        <input type="text" id="songName" placeholder="例如：晴天" required>
+                        <input type="text" id="songName" placeholder="例如：相信自己" required>
                     </div>
                     <div class="form-group">
                         <label for="artist">演唱歌手 *</label>
-                        <input type="text" id="artist" placeholder="例如：周杰伦" required>
+                        <input type="text" id="artist" placeholder="例如：零点乐队" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reason">加油寄语 / 点歌理由 (选填)</label>
+                        <textarea id="reason" rows="2" placeholder="写下为运动健儿加油打气的话吧..."></textarea>
                     </div>
                     <div class="form-group">
                         <label for="musicFile">音频文件 (选填, mp3/wav)</label>
                         <input type="file" id="musicFile" accept="audio/*">
                     </div>
-                    <button type="submit" class="btn-submit" id="submitBtn">提交点歌</button>
+                    <button type="submit" class="btn-submit" id="submitBtn">提交运动会点歌</button>
                 </form>
             </div>
 
             <!-- 我的点歌历史与审核进度追踪 -->
             <div class="card">
-                <h2>🔍 我的点歌记录 (状态追踪)</h2>
+                <h2>🔍 我的征集记录</h2>
                 <ul class="song-list" id="myHistoryList">
                     <li style="text-align:center; color:#999; padding:15px;">暂无点歌记录</li>
                 </ul>
@@ -210,7 +234,7 @@
         <!-- 右侧：全校公共已通过点播榜 -->
         <div>
             <div class="card">
-                <h2>📜 广播台播放单 (已审核/已播放)</h2>
+                <h2>📜 运动会现场播放歌单 (审核通过)</h2>
                 <ul class="song-list" id="publicSongList">
                     <li style="text-align:center; color:#999; padding:20px;">加载中...</li>
                 </ul>
@@ -227,6 +251,11 @@
         let currentUser = null;
         let isLoginMode = true;
 
+        // 关闭规则弹窗
+        function closeRuleModal() {
+            document.getElementById('ruleModal').classList.add('hidden');
+        }
+
         // 切换登录 / 注册模式 UI
         function switchAuthMode(mode) {
             isLoginMode = mode === 'login';
@@ -235,7 +264,7 @@
             document.getElementById('authBtn').innerText = isLoginMode ? '登录' : '注册';
         }
 
-        // 监听身份认证状态变化（自动维持登录态）
+        // 监听身份认证状态变化
         db.auth.onAuthStateChange((event, session) => {
             if (session && session.user) {
                 currentUser = session.user;
@@ -252,7 +281,6 @@
             document.getElementById('userBar').classList.remove('hidden');
             document.getElementById('userEmail').innerText = currentUser.email;
 
-            // 加载数据
             fetchNotice();
             fetchPublicSongs();
             fetchMyHistory();
@@ -264,7 +292,7 @@
             document.getElementById('userBar').classList.add('hidden');
         }
 
-        // 2. 登录 / 注册提交逻辑
+        // 2. 登录 / 注册逻辑
         document.getElementById('authForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('authEmail').value;
@@ -283,7 +311,7 @@
                     if (error) {
                         alert('注册失败: ' + error.message);
                     } else {
-                        alert('🎉 注册成功！如果配置了邮箱验证，请查收邮件确认；或直接尝试登录。');
+                        alert('🎉 注册成功！请直接登录。');
                         switchAuthMode('login');
                     }
                 }
@@ -300,7 +328,7 @@
             await db.auth.signOut();
         }
 
-        // 3. 加载广播台最新公告（如为空则保持隐藏）
+        // 3. 加载广播台最新公告
         async function fetchNotice() {
             const { data, error } = await db
                 .from('announcements')
@@ -317,29 +345,17 @@
             }
         }
 
-        // 获取本周一 00:00:00 的 ISO 时间戳（用于限制周点歌次数）
-        function getMondayOfWeek() {
-            const now = new Date();
-            const day = now.getDay(); // 0 是周日, 1-6 是周一到周六
-            const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-            const monday = new Date(now.setDate(diff));
-            monday.setHours(0, 0, 0, 0);
-            return monday.toISOString();
-        }
-
-        // 检查本周已用点歌额度（包含所有状态：pending, approved, played, rejected）
-        async function getWeeklySongCount() {
-            const mondayISO = getMondayOfWeek();
+        // 查询用户历史提交总数（每人限 1 次）
+        async function getUserSongCount() {
             const { count, error } = await db
                 .from('songs')
                 .select('id', { count: 'exact', head: true })
-                .eq('voter_id', currentUser.id)
-                .gte('created_at', mondayISO);
+                .eq('voter_id', currentUser.id);
 
             return error ? 0 : count;
         }
 
-        // 4. 加载公共榜单 (status 仅显示 approved 或 played)
+        // 4. 加载公共榜单 (status 为 approved 或 played)
         async function fetchPublicSongs() {
             const publicListEl = document.getElementById('publicSongList');
 
@@ -355,11 +371,10 @@
             }
 
             if (songs.length === 0) {
-                publicListEl.innerHTML = '<li style="text-align:center; color:#999; padding:20px;">暂无已通过审核的歌曲</li>';
+                publicListEl.innerHTML = '<li style="text-align:center; color:#999; padding:20px;">暂无运动会播放歌单</li>';
                 return;
             }
 
-            // 查询当前用户（绑定账号 UID）的点赞记录
             const songIds = songs.map(s => s.id);
             const { data: userVotes } = await db
                 .from('song_votes')
@@ -377,13 +392,15 @@
                 
                 let audioPlayer = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '';
                 let statusBadge = song.status === 'played' 
-                    ? `<span class="status-badge status-played">📻 已播放</span>` 
-                    : `<span class="status-badge status-approved">🟢 审核通过/待播放</span>`;
+                    ? `<span class="status-badge status-played">📻 现场已播放</span>` 
+                    : `<span class="status-badge status-approved">🟢 审核通过 / 待播放</span>`;
+                let reasonHtml = song.reason ? `<div class="song-reason">💬 "${escapeHtml(song.reason)}"</div>` : '';
 
                 li.innerHTML = `
                     <div class="song-info">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
-                        <div class="song-artist">歌手: ${escapeHtml(song.artist)}</div>
+                        <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || '匿名')}</div>
+                        ${reasonHtml}
                         ${statusBadge}
                         ${audioPlayer}
                     </div>
@@ -395,18 +412,23 @@
             });
         }
 
-        // 5. 加载“我的点歌历史”及更新周额度提示
+        // 5. 加载“我的点歌记录”并校验每个人唯一额度
         async function fetchMyHistory() {
             const historyListEl = document.getElementById('myHistoryList');
+            const submitBtn = document.getElementById('submitBtn');
+            const userCount = await getUserSongCount();
 
-            // 实时同步更新本周已点歌额度文字
-            const currentWeeklyCount = await getWeeklySongCount();
-            document.getElementById('weekLimitHint').innerText = `本周已用 ${currentWeeklyCount}/2 次额度`;
+            if (userCount >= 1) {
+                document.getElementById('limitHint').innerText = '已用完点歌额度 (1/1)';
+                submitBtn.disabled = true;
+                submitBtn.innerText = '您已完成运动会点歌 (每人限1次)';
+                submitBtn.style.backgroundColor = '#b2bec3';
+            }
 
             const { data: mySongs, error } = await db
                 .from('songs')
                 .select('*')
-                .eq('voter_id', currentUser.id) // 绑定当前登录用户的 UID
+                .eq('voter_id', currentUser.id)
                 .order('created_at', { ascending: false });
 
             if (error || !mySongs) {
@@ -415,7 +437,7 @@
             }
 
             if (mySongs.length === 0) {
-                historyListEl.innerHTML = '<li style="text-align:center; color:#999; padding:15px;">你还没有点过歌哦</li>';
+                historyListEl.innerHTML = '<li style="text-align:center; color:#999; padding:15px;">你还没有点歌哦</li>';
                 return;
             }
 
@@ -430,13 +452,13 @@
                 if (song.status === 'pending') {
                     statusBadge = `<span class="status-badge status-pending">🟡 审核中</span>`;
                 } else if (song.status === 'approved') {
-                    statusBadge = `<span class="status-badge status-approved">🟢 审核通过 / 排队中</span>`;
+                    statusBadge = `<span class="status-badge status-approved">🟢 已入选运动会歌单</span>`;
                 } else if (song.status === 'played') {
-                    statusBadge = `<span class="status-badge status-played">🟣 已在广播台播放</span>`;
+                    statusBadge = `<span class="status-badge status-played">🟣 现场已播放</span>`;
                 } else if (song.status === 'rejected') {
-                    statusBadge = `<span class="status-badge status-rejected">🔴 审核未通过</span>`;
+                    statusBadge = `<span class="status-badge status-rejected">🔴 未入选</span>`;
                     if (song.reject_reason) {
-                        reasonNotice = `<div style="font-size:0.8rem; color:#d63031; margin-top:6px; background:#ffeaa7; padding:4px 8px; border-radius:4px;">⚠️ 未通过原因：${escapeHtml(song.reject_reason)}</div>`;
+                        reasonNotice = `<div style="font-size:0.8rem; color:#d63031; margin-top:6px; background:#ffeaa7; padding:4px 8px; border-radius:4px;">⚠️ 说明：${escapeHtml(song.reject_reason)}</div>`;
                     }
                 }
 
@@ -452,20 +474,19 @@
             });
         }
 
-        // 6. 提交点歌表单处理（含 weekly count 校验）
+        // 6. 提交点歌处理（严格限制每个人仅 1 次）
         document.getElementById('songForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
 
-            // 检查本周点歌次数是否受限（审核未通过同样算入已用额度）
-            const weeklyCount = await getWeeklySongCount();
-            if (weeklyCount >= 2) {
-                alert('⚠️ 提交失败：每位同学每周最多仅能点歌 2 次（包含审核未通过的记录）。如果管理员在后台清空了您的记录，刷页后会自动恢复额度。');
+            const count = await getUserSongCount();
+            if (count >= 1) {
+                alert('⚠️ 每位同学在运动会期间仅有 1 次点歌机会，请勿重复提交！');
                 return;
             }
 
             btn.disabled = true;
-            btn.innerText = '正在上传...';
+            btn.innerText = '正在提交...';
 
             let audioUrl = '';
             const fileInput = document.getElementById('musicFile');
@@ -480,7 +501,7 @@
                 if (uploadError) {
                     alert('音频上传失败: ' + uploadError.message);
                     btn.disabled = false;
-                    btn.innerText = '提交点歌';
+                    btn.innerText = '提交运动会点歌';
                     return;
                 }
 
@@ -491,10 +512,11 @@
                 audioUrl = publicUrlData.publicUrl;
             }
 
-            // 将 currentUser.id 记录为提交人 UID，默认状态为 pending
             const { error } = await db.from('songs').insert([{
+                class_and_name: document.getElementById('classAndName').value,
                 song_name: document.getElementById('songName').value,
                 artist: document.getElementById('artist').value,
+                reason: document.getElementById('reason').value,
                 audio_url: audioUrl,
                 status: 'pending',
                 voter_id: currentUser.id, 
@@ -503,17 +525,16 @@
 
             if (error) {
                 alert('提交失败: ' + error.message);
+                btn.disabled = false;
+                btn.innerText = '提交运动会点歌';
             } else {
-                alert('🎉 提交成功！请在下方“我的点歌记录”追踪审核状态。');
+                alert('🎉 提交成功！请等待广播站审核。');
                 this.reset();
                 fetchMyHistory();
             }
-
-            btn.disabled = false;
-            btn.innerText = '提交点歌';
         });
 
-        // 7. 点赞切换功能
+        // 7. 点赞逻辑
         async function toggleVote(songId, currentVotes, isVoted) {
             if (isVoted) {
                 await db.from('song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
