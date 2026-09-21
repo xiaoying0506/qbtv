@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏃 校园运动会背景音乐征集</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- 1. 活动规则弹窗 -->
+    <div id="ruleModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 transform transition-all">
+            <div class="text-center">
+                <div class="text-4xl mb-2">📢</div>
+                <h2 class="text-2xl font-bold text-slate-800">运动会点歌须知</h2>
+            </div>
+            
+            <!-- 规则自定义区域 -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600 space-y-2 max-h-60 overflow-y-auto">
+                <p class="font-bold text-slate-800">Dear 同学们：</p>
+                <p>1. 每个人只有 <strong>1 次点歌机会</strong>，提交后不可修改，请谨慎选择。</p>
+                <p>2. 所点歌曲需内容健康向上，符合校园文化与运动会拼搏氛围。</p>
+                <p>3. 提交的歌曲将由广播站统一审核，审核通过后方可入选运动会播放歌单。</p>
+                <p>4. 严禁点播含有低俗、暴力或不良导向词曲的音乐。</p>
+            </div>
+
+            <button id="closeModalBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition">
+                我已阅读并同意
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 主表单卡片 -->
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 sm:p-8 space-y-6">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold text-slate-800">🏃 运动会音乐征集</h1>
+            <p class="text-xs text-slate-500 mt-1">为运动健儿加油打气，唱响你的赛场主打歌！</p>
+        </div>
+
+        <!-- 3. 公告展示栏 -->
+        <div id="noticeBox" class="hidden p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+            <span class="font-bold">📢 最新公告：</span>
+            <span id="noticeContent"></span>
+        </div>
+
+        <!-- 点歌表单 -->
+        <form id="songForm" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">班级 / 姓名</label>
+                <input type="text" id="userInfo" required placeholder="例：高二(3)班 张三" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">歌曲名称</label>
+                <input type="text" id="songName" required placeholder="请输入歌曲完整名称" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">歌手/演唱者</label>
+                <input type="text" id="artist" required placeholder="请输入歌手姓名" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">加油寄语 / 点歌理由 (选填)</label>
+                <textarea id="reason" rows="3" placeholder="写下你为运动员加油打气的话吧..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition">
+                🚀 提交点歌
+            </button>
+        </form>
+
+        <!-- 已提交后的锁定提示 -->
+        <div id="lockedBox" class="hidden text-center p-6 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <div class="text-3xl">✅</div>
+            <p class="font-bold text-slate-700 text-sm">你已完成本次运动会点歌</p>
+            <p class="text-xs text-slate-400">每人仅限点歌一次，感谢你的参与！</p>
+        </div>
+    </div>
+
+    <script>
+        const ruleModal = document.getElementById('ruleModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const songForm = document.getElementById('songForm');
+        const lockedBox = document.getElementById('lockedBox');
+        const noticeBox = document.getElementById('noticeBox');
+        const noticeContent = document.getElementById('noticeContent');
+
+        // 初始化检查
+        window.addEventListener('DOMContentLoaded', () => {
+            // 校验点歌资格
+            if (localStorage.getItem('sports_song_submitted')) {
+                songForm.classList.add('hidden');
+                lockedBox.classList.remove('hidden');
+            }
+
+            // 读取后台公告
+            const notice = localStorage.getItem('sports_notice');
+            if (notice) {
+                noticeContent.innerText = notice;
+                noticeBox.classList.remove('hidden');
+            }
+        });
+
+        // 关闭弹窗
+        closeModalBtn.addEventListener('click', () => {
+            ruleModal.classList.add('hidden');
+        });
+
+        // 提交点歌表单
+        songForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            if (localStorage.getItem('sports_song_submitted')) {
+                alert('您已经提交过点歌需求，请勿重复操作！');
+                return;
+            }
+
+            const songData = {
+                id: Date.now(),
+                userInfo: document.getElementById('userInfo').value,
+                songName: document.getElementById('songName').value,
+                artist: document.getElementById('artist').value,
+                reason: document.getElementById('reason').value || '无',
+                status: 'pending', // 状态: pending (待审核), approved (已通过), rejected (已拒绝)
+                time: new Date().toLocaleString()
+            };
+
+            // 存储歌曲数据
+            const list = JSON.parse(localStorage.getItem('sports_song_list') || '[]');
+            list.push(songData);
+            localStorage.setItem('sports_song_list', JSON.stringify(list));
+
+            // 锁定个人资格
+            localStorage.setItem('sports_song_submitted', 'true');
+
+            alert('🎉 提交成功！请等待广播站审核。');
+            songForm.classList.add('hidden');
+            lockedBox.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
