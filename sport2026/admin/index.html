@@ -15,11 +15,23 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'PingFang SC', sans-serif; }
         body { background-color: #f1f2f6; color: var(--dark-color); padding-bottom: 50px; }
 
-        header {
-            background: #2d3436; color: white; padding: 20px;
-            display: flex; justify-content: space-between; align-items: center;
+        /* 顶部导航栏及转换提示栏 */
+        .top-nav {
+            background: #1e272e; color: white; padding: 12px 20px;
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
         }
-        header h1 { font-size: 1.5rem; }
+        .top-nav-left { display: flex; align-items: center; gap: 15px; }
+        .top-nav-left h1 { font-size: 1.3rem; margin: 0; }
+        .home-btn {
+            background-color: #00d2d3; color: #1e272e; font-weight: bold;
+            padding: 8px 16px; border-radius: 6px; text-decoration: none; transition: background 0.2s;
+        }
+        .home-btn:hover { background-color: #54a0ff; color: white; }
+
+        .format-tip-banner {
+            background: #fff200; color: #2c2c54; padding: 10px 20px; font-size: 0.9rem;
+            font-weight: bold; text-align: center; border-bottom: 2px solid #ffd32a;
+        }
 
         .container { max-width: 1100px; margin: 20px auto; padding: 0 15px; }
 
@@ -64,17 +76,25 @@
 </head>
 <body>
 
-    <header>
-        <h1>⚙️ 运动会广播台后台管理系统</h1>
-        <button class="btn btn-delete" onclick="location.href='index.html'">返回前台</button>
+    <!-- 顶部导航栏 -->
+    <header class="top-nav">
+        <div class="top-nav-left">
+            <a href="index.html" class="home-btn">🏠 前往首页</a>
+            <h1>⚙️ 运动会广播台后台管理系统</h1>
+        </div>
     </header>
+
+    <!-- 音频格式转码提示 Banner -->
+    <div class="format-tip-banner">
+        ⚠️ 本系统仅支持上传 MP3 格式音频！如音频格式不是 MP3，请点击顶部【前往首页】按钮，使用首页提供的转换工具进行格式转换后再投稿。
+    </div>
 
     <div class="container">
         <!-- 1. 广播站公告管理面板 -->
         <div class="card">
             <h2>📢 发布 / 修改广播台公告</h2>
             <div class="notice-form">
-                <input type="text" id="noticeInput" placeholder="输入公告内容（例如：请大家积极投稿跑步类激昂歌曲！）">
+                <input type="text" id="noticeInput" placeholder="输入公告内容（例如：请大家积极投稿 MP3 格式歌曲！）">
                 <button class="btn btn-submit" onclick="updateNotice()">更新公告</button>
             </div>
         </div>
@@ -97,7 +117,7 @@
                     <tr>
                         <th>班级 / 姓名</th>
                         <th>歌名 / 歌手</th>
-                        <th>试听</th>
+                        <th>试听 (MP3)</th>
                         <th>获赞</th>
                         <th>状态</th>
                         <th>操作</th>
@@ -118,13 +138,11 @@
         let currentFilter = 'all';
         let allSongs = [];
 
-        // 初始化加载数据
         window.onload = function() {
             fetchNotice();
             fetchSongs();
         };
 
-        // 1. 获取公告
         async function fetchNotice() {
             const { data } = await db
                 .from('sport2026_announcements')
@@ -138,7 +156,6 @@
             }
         }
 
-        // 2. 更新公告
         async function updateNotice() {
             const content = document.getElementById('noticeInput').value.trim();
             if (!content) {
@@ -146,18 +163,16 @@
                 return;
             }
 
-            // 先将旧公告标记为不激活，再插入新公告
             await db.from('sport2026_announcements').update({ is_active: false }).neq('id', 0);
             const { error } = await db.from('sport2026_announcements').insert([{ content, is_active: true }]);
 
             if (error) {
                 alert('更新失败：' + error.message);
             } else {
-                alert('🎉 公告更新成功！全校前台已生效。');
+                alert('🎉 公告更新成功！');
             }
         }
 
-        // 3. 读取全量征集歌曲
         async function fetchSongs() {
             const { data, error } = await db
                 .from('sport2026_songs')
@@ -173,7 +188,6 @@
             renderTable();
         }
 
-        // 4. 按状态筛选
         function filterStatus(status, btnEl) {
             currentFilter = status;
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -181,7 +195,6 @@
             renderTable();
         }
 
-        // 5. 渲染表格 UI
         function renderTable() {
             const tbody = document.getElementById('songTableBody');
             tbody.innerHTML = '';
@@ -202,7 +215,7 @@
                 else if (song.status === 'played') statusTag = `<span class="badge badge-played">已播放</span>`;
                 else if (song.status === 'rejected') statusTag = `<span class="badge badge-rejected">已拒绝</span>`;
 
-                let audioTag = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '无文件';
+                let audioTag = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '无音频';
 
                 let actionBtns = '';
                 if (song.status === 'pending') {
@@ -231,7 +244,6 @@
             });
         }
 
-        // 6. 更新歌曲状态
         async function updateStatus(id, newStatus, reason = '') {
             const updatePayload = { status: newStatus };
             if (reason) updatePayload.reject_reason = reason;
@@ -245,15 +257,13 @@
             }
         }
 
-        // 拒绝歌曲弹窗提示
         function rejectSong(id) {
-            const reason = prompt('请输入拒绝原因（例如：歌词包含敏感/不宜内容）：');
+            const reason = prompt('请输入拒绝原因（例如：音频非 MP3 格式或歌词包含不宜内容）：');
             if (reason !== null) {
                 updateStatus(id, 'rejected', reason);
             }
         }
 
-        // 7. 删除记录
         async function deleteSong(id) {
             if (confirm('确认要永久删除这条点歌记录吗？')) {
                 const { error } = await db.from('sport2026_songs').delete().eq('id', id);
