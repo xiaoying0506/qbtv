@@ -3,62 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚙️ 运动会背景音乐征集 - 后台管理系统</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>⚙️ 运动会点歌后台管理系统</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #ff6b6b;
+            --dark-color: #2d3436;
+            --light-bg: #f8f9fa;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'PingFang SC', sans-serif; }
+        body { background-color: #f1f2f6; color: var(--dark-color); padding-bottom: 50px; }
+
+        header {
+            background: #2d3436; color: white; padding: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        header h1 { font-size: 1.5rem; }
+
+        .container { max-width: 1100px; margin: 20px auto; padding: 0 15px; }
+
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card h2 { font-size: 1.2rem; margin-bottom: 15px; border-bottom: 2px solid #f1f2f6; padding-bottom: 8px; }
+
+        /* 公告控制面板 */
+        .notice-form { display: flex; gap: 10px; }
+        .notice-form input { flex: 1; padding: 10px; border: 1px solid #dfe4ea; border-radius: 6px; }
+
+        /* 筛选标签页 */
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #dfe4ea; padding-bottom: 10px; }
+        .tab-btn {
+            background: none; border: none; font-size: 1rem; font-weight: bold;
+            color: #636e72; padding: 6px 16px; cursor: pointer; border-radius: 6px;
+        }
+        .tab-btn.active { background: var(--primary-color); color: white; }
+
+        /* 数据表格 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #dfe4ea; }
+        th { background: #f8f9fa; color: #2d3436; }
+
+        /* 状态样式 */
+        .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        .badge-pending { background-color: #ffeaa7; color: #d63031; }
+        .badge-approved { background-color: #55efc4; color: #008148; }
+        .badge-played { background-color: #a29bfe; color: #2d3436; }
+        .badge-rejected { background-color: #ff7675; color: #ffffff; }
+
+        /* 操作按钮 */
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; margin-right: 4px; }
+        .btn-approve { background: #2ecc71; color: white; }
+        .btn-reject { background: #e74c3c; color: white; }
+        .btn-played { background: #9b59b6; color: white; }
+        .btn-delete { background: #b2bec3; color: white; }
+        .btn-submit { background: var(--primary-color); color: white; }
+        .btn:hover { opacity: 0.85; }
+
+        audio { max-height: 30px; width: 200px; }
+    </style>
 </head>
-<body class="bg-slate-50 min-h-screen p-4 sm:p-8">
+<body>
 
-    <div class="max-w-6xl mx-auto space-y-6">
-        <!-- 1. 头部区域 -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div>
-                <h1 class="text-xl font-bold text-slate-800">⚙️ 运动会背景音乐征集后台</h1>
-                <p class="text-xs text-slate-500 mt-1">实时审核歌单、发布广播台公告及导出 Excel / CSV 表单</p>
-            </div>
-            <div>
-                <button id="exportBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-sm">
-                    📊 导出 CSV 表单
-                </button>
+    <header>
+        <h1>⚙️ 运动会广播台后台管理系统</h1>
+        <button class="btn btn-delete" onclick="location.href='index.html'">返回前台</button>
+    </header>
+
+    <div class="container">
+        <!-- 1. 广播站公告管理面板 -->
+        <div class="card">
+            <h2>📢 发布 / 修改广播台公告</h2>
+            <div class="notice-form">
+                <input type="text" id="noticeInput" placeholder="输入公告内容（例如：请大家积极投稿跑步类激昂歌曲！）">
+                <button class="btn btn-submit" onclick="updateNotice()">更新公告</button>
             </div>
         </div>
 
-        <!-- 2. 发布广播台公告面板 -->
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-            <h2 class="text-sm font-bold text-slate-800">📢 发布 / 更新运动会前台公告</h2>
-            <div class="flex gap-3">
-                <input type="text" id="noticeInput" placeholder="请输入前台广播台公告（留空并点击保存可清除公告）..." class="flex-1 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-red-500 focus:outline-none">
-                <button id="saveNoticeBtn" class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition">
-                    保存公告
-                </button>
-            </div>
-        </div>
+        <!-- 2. 征集歌曲审核与播放控制列表 -->
+        <div class="card">
+            <h2>🎵 征集歌曲管理与审核</h2>
 
-        <!-- 3. 点歌提报审核列表 -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-slate-800">🎵 征集提报审核列表</h2>
-                <span id="totalCount" class="text-xs text-slate-500">加载中...</span>
+            <!-- 分类筛选按钮 -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="filterStatus('all', this)">全部歌曲</button>
+                <button class="tab-btn" onclick="filterStatus('pending', this)">⏳ 待审核</button>
+                <button class="tab-btn" onclick="filterStatus('approved', this)">🟢 已通过</button>
+                <button class="tab-btn" onclick="filterStatus('played', this)">📻 已播放</button>
+                <button class="tab-btn" onclick="filterStatus('rejected', this)">🔴 已拒绝</button>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-slate-50 text-slate-600 font-semibold uppercase border-b border-slate-100">
-                        <tr>
-                            <th class="p-3">提交时间</th>
-                            <th class="p-3">班级/姓名</th>
-                            <th class="p-3">歌名</th>
-                            <th class="p-3">歌手</th>
-                            <th class="p-3">获赞</th>
-                            <th class="p-3">状态</th>
-                            <th class="p-3 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="songTableBody" class="divide-y divide-slate-100 text-slate-700">
-                        <!-- 动态渲染数据 -->
-                    </tbody>
-                </table>
-            </div>
+            <table id="songTable">
+                <thead>
+                    <tr>
+                        <th>班级 / 姓名</th>
+                        <th>歌名 / 歌手</th>
+                        <th>试听</th>
+                        <th>获赞</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="songTableBody">
+                    <tr><td colspan="6" style="text-align:center; color:#999;">数据加载中...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -67,127 +115,156 @@
         const SUPABASE_KEY = 'sb_publishable_4HrnKeD4I4NNrMypwy1cjA_js3mIwVS';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const songTableBody = document.getElementById('songTableBody');
-        const noticeInput = document.getElementById('noticeInput');
-        const saveNoticeBtn = document.getElementById('saveNoticeBtn');
-        const exportBtn = document.getElementById('exportBtn');
-        const totalCount = document.getElementById('totalCount');
+        let currentFilter = 'all';
+        let allSongs = [];
 
-        let globalSongList = [];
+        // 初始化加载数据
+        window.onload = function() {
+            fetchNotice();
+            fetchSongs();
+        };
 
-        // 加载后台数据
-        async function fetchAdminSongs() {
-            const { data, error } = await db
-                .from('songs')
-                .select('*')
-                .order('created_at', { ascending: false });
+        // 1. 获取公告
+        async function fetchNotice() {
+            const { data } = await db
+                .from('sport2026_announcements')
+                .select('content')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1);
 
-            if (error) return alert('读取数据失败：' + error.message);
+            if (data && data.length > 0) {
+                document.getElementById('noticeInput').value = data[0].content;
+            }
+        }
 
-            globalSongList = data || [];
-            totalCount.innerText = `共 ${globalSongList.length} 条提报记录`;
-            songTableBody.innerHTML = '';
-
-            if (globalSongList.length === 0) {
-                songTableBody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">暂无点歌数据</td></tr>`;
+        // 2. 更新公告
+        async function updateNotice() {
+            const content = document.getElementById('noticeInput').value.trim();
+            if (!content) {
+                alert('公告内容不能为空！');
                 return;
             }
 
-            globalSongList.forEach(item => {
-                const tr = document.createElement('tr');
-                
-                let statusTag = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">待审核</span>`;
-                if (item.status === 'approved') statusTag = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">已通过</span>`;
-                if (item.status === 'played') statusTag = `<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-700 font-bold">已播放</span>`;
-                if (item.status === 'rejected') statusTag = `<span class="px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold">已拒绝</span>`;
+            // 先将旧公告标记为不激活，再插入新公告
+            await db.from('sport2026_announcements').update({ is_active: false }).neq('id', 0);
+            const { error } = await db.from('sport2026_announcements').insert([{ content, is_active: true }]);
 
-                const timeStr = new Date(item.created_at).toLocaleString();
+            if (error) {
+                alert('更新失败：' + error.message);
+            } else {
+                alert('🎉 公告更新成功！全校前台已生效。');
+            }
+        }
+
+        // 3. 读取全量征集歌曲
+        async function fetchSongs() {
+            const { data, error } = await db
+                .from('sport2026_songs')
+                .select('*')
+                .order('votes', { ascending: false });
+
+            if (error) {
+                alert('获取歌曲列表失败');
+                return;
+            }
+
+            allSongs = data || [];
+            renderTable();
+        }
+
+        // 4. 按状态筛选
+        function filterStatus(status, btnEl) {
+            currentFilter = status;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btnEl.classList.add('active');
+            renderTable();
+        }
+
+        // 5. 渲染表格 UI
+        function renderTable() {
+            const tbody = document.getElementById('songTableBody');
+            tbody.innerHTML = '';
+
+            const filteredSongs = allSongs.filter(s => currentFilter === 'all' || s.status === currentFilter);
+
+            if (filteredSongs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#999;">暂无相关歌曲数据</td></tr>';
+                return;
+            }
+
+            filteredSongs.forEach(song => {
+                const tr = document.createElement('tr');
+
+                let statusTag = '';
+                if (song.status === 'pending') statusTag = `<span class="badge badge-pending">待审核</span>`;
+                else if (song.status === 'approved') statusTag = `<span class="badge badge-approved">已通过</span>`;
+                else if (song.status === 'played') statusTag = `<span class="badge badge-played">已播放</span>`;
+                else if (song.status === 'rejected') statusTag = `<span class="badge badge-rejected">已拒绝</span>`;
+
+                let audioTag = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '无文件';
+
+                let actionBtns = '';
+                if (song.status === 'pending') {
+                    actionBtns += `<button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">通过</button>`;
+                    actionBtns += `<button class="btn btn-reject" onclick="rejectSong(${song.id})">拒绝</button>`;
+                } else if (song.status === 'approved') {
+                    actionBtns += `<button class="btn btn-played" onclick="updateStatus(${song.id}, 'played')">标记已播放</button>`;
+                    actionBtns += `<button class="btn btn-reject" onclick="rejectSong(${song.id})">改判拒绝</button>`;
+                } else if (song.status === 'played') {
+                    actionBtns += `<span style="color:#636e72; font-size:0.8rem;">已播完</span>`;
+                } else {
+                    actionBtns += `<button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">重新通过</button>`;
+                }
+
+                actionBtns += `<button class="btn btn-delete" onclick="deleteSong(${song.id})">删除</button>`;
 
                 tr.innerHTML = `
-                    <td class="p-3 text-slate-400">${timeStr}</td>
-                    <td class="p-3 font-semibold">${escapeHtml(item.class_and_name || '未填写')}</td>
-                    <td class="p-3 text-red-600 font-bold">${escapeHtml(item.song_name)}</td>
-                    <td class="p-3">${escapeHtml(item.artist)}</td>
-                    <td class="p-3 font-bold text-amber-600">❤️ ${item.votes || 0}</td>
-                    <td class="p-3">${statusTag}</td>
-                    <td class="p-3 text-center space-x-1">
-                        <button onclick="updateStatus(${item.id}, 'approved')" class="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-bold">通过</button>
-                        <button onclick="updateStatus(${item.id}, 'played')" class="px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded font-bold">已播</button>
-                        <button onclick="rejectItem(${item.id})" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold">拒绝</button>
-                        <button onclick="deleteItem(${item.id})" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded font-bold">删除</button>
-                    </td>
+                    <td><strong>${escapeHtml(song.class_and_name)}</strong></td>
+                    <td><b>${escapeHtml(song.song_name)}</b><br><small style="color:#636e72;">${escapeHtml(song.artist)}</small></td>
+                    <td>${audioTag}</td>
+                    <td>❤️ ${song.votes || 0}</td>
+                    <td>${statusTag}</td>
+                    <td>${actionBtns}</td>
                 `;
-                songTableBody.appendChild(tr);
+                tbody.appendChild(tr);
             });
         }
 
-        // 修改状态（通过/已播）
-        window.updateStatus = async function(id, status) {
-            await db.from('songs').update({ status }).eq('id', id);
-            fetchAdminSongs();
-        };
+        // 6. 更新歌曲状态
+        async function updateStatus(id, newStatus, reason = '') {
+            const updatePayload = { status: newStatus };
+            if (reason) updatePayload.reject_reason = reason;
 
-        // 拒绝点歌
-        window.rejectItem = async function(id) {
-            const reason = prompt('请输入拒绝说明/原因（同学可在个人记录中查看）：');
-            if (reason === null) return;
-            await db.from('songs').update({ status: 'rejected', reject_reason: reason }).eq('id', id);
-            fetchAdminSongs();
-        };
+            const { error } = await db.from('sport2026_songs').update(updatePayload).eq('id', id);
 
-        // 删除记录
-        window.deleteItem = async function(id) {
-            if (!confirm('确定要删除此条记录吗？删除后该同学可重新点歌。')) return;
-            await db.from('songs').delete().eq('id', id);
-            fetchAdminSongs();
-        };
-
-        // 发布/更新公告
-        saveNoticeBtn.addEventListener('click', async () => {
-            const val = noticeInput.value.trim();
-            if (val === '') {
-                await db.from('announcements').update({ is_active: false }).eq('is_active', true);
-                alert('已清除所有显示中的公告！');
+            if (error) {
+                alert('操作失败：' + error.message);
             } else {
-                await db.from('announcements').update({ is_active: false }).eq('is_active', true);
-                await db.from('announcements').insert([{ content: val, is_active: true }]);
-                alert('运动会公告发布成功！');
+                fetchSongs();
             }
-        });
-
-        // 导出 CSV
-        exportBtn.addEventListener('click', () => {
-            if (globalSongList.length === 0) return alert('暂无可导出的数据');
-
-            let csvContent = "\uFEFF提交时间,班级姓名,歌曲名称,歌手,获赞数,审核状态\n";
-            globalSongList.forEach(item => {
-                const timeStr = new Date(item.created_at).toLocaleString();
-                csvContent += `"${timeStr}","${item.class_and_name || ''}","${item.song_name}","${item.artist}","${item.votes || 0}","${item.status}"\n`;
-            });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `运动会音乐征集表_${new Date().toISOString().slice(0,10)}.csv`;
-            link.click();
-        });
-
-        // 加载当前最新公告
-        async function fetchCurrentNotice() {
-            const { data } = await db.from('announcements').select('content').eq('is_active', true).limit(1);
-            if (data && data.length > 0) noticeInput.value = data[0].content;
         }
 
-        // 转义防 XSS 攻击
+        // 拒绝歌曲弹窗提示
+        function rejectSong(id) {
+            const reason = prompt('请输入拒绝原因（例如：歌词包含敏感/不宜内容）：');
+            if (reason !== null) {
+                updateStatus(id, 'rejected', reason);
+            }
+        }
+
+        // 7. 删除记录
+        async function deleteSong(id) {
+            if (confirm('确认要永久删除这条点歌记录吗？')) {
+                const { error } = await db.from('sport2026_songs').delete().eq('id', id);
+                if (error) alert('删除失败');
+                else fetchSongs();
+            }
+        }
+
         function escapeHtml(str) {
             return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
-
-        // 初始化
-        window.addEventListener('DOMContentLoaded', () => {
-            fetchAdminSongs();
-            fetchCurrentNotice();
-        });
     </script>
 </body>
 </html>
