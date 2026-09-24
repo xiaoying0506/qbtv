@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏃 校园运动会背景音乐征集</title>
     <link rel="shortcut icon" href="logo.png" type="image/x-icon">
+    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -28,16 +29,7 @@
         }
         header h1 { font-size: 1.8rem; margin-bottom: 5px; }
 
-        /* 左上角兑换码按钮 */
-        .redeem-btn-top {
-            position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
-            background: white; color: var(--primary-color); border: none;
-            padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: bold;
-            cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: 0.2s;
-        }
-        .redeem-btn-top:hover { background: #ffeaa7; }
-
-        /* 右上角用户信息 */
+        /* 用户信息与退出按钮 */
         .user-bar {
             position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
             display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.2);
@@ -46,9 +38,11 @@
         .btn-logout {
             background: white; color: var(--primary-color); border: none;
             padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: bold;
+            transition: 0.2s;
         }
+        .btn-logout:hover { background: #f0f0f0; }
 
-        /* 统一弹窗样式 */
+        /* 规则弹窗样式 */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
@@ -56,19 +50,10 @@
             z-index: 1000; padding: 20px;
         }
         .modal-card {
-            background: white; border-radius: 16px; padding: 25px; max-width: 450px; width: 100%;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; position: relative;
+            background: white; border-radius: 16px; padding: 25px; max-width: 480px; width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center;
         }
-        .modal-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 12px; color: #2d3436; }
-        
-        /* 宣传海报卡片样式 */
-        .banner-card {
-            background: white; border-radius: 12px; overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; text-align: center;
-        }
-        .banner-card img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
-        .banner-title { padding: 10px 15px; font-weight: bold; font-size: 0.95rem; color: #2d3436; }
-
+        .modal-title { font-size: 1.4rem; font-weight: bold; margin-bottom: 12px; color: #2d3436; }
         .rule-box {
             background: #f8f9fa; border: 1px solid #dfe4ea; border-radius: 10px;
             padding: 15px; text-align: left; font-size: 0.88rem; line-height: 1.6; color: #57606f;
@@ -84,24 +69,26 @@
         }
         .auth-tab.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); }
 
-        /* 公告栏 */
+        /* 公告栏样式 */
         .notice-card {
             background-color: var(--notice-bg); border: 1px solid var(--notice-border);
             border-left: 5px solid var(--notice-text); padding: 12px 18px; border-radius: 8px;
             margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #495057;
         }
+        .notice-card .notice-icon { font-size: 1.2rem; }
+        .notice-card .notice-content { flex: 1; line-height: 1.4; }
 
-        /* 页面主体网格 */
+        /* 主界面网格布局：左右两栏对齐 */
         .container {
             max-width: 1000px; margin: 20px auto 0 auto; padding: 0 15px;
-            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+            align-items: start;
         }
 
         @media (max-width: 768px) { 
             .container { grid-template-columns: 1fr; } 
-            header { padding-bottom: 75px; }
-            .redeem-btn-top { top: auto; bottom: 12px; transform: none; left: 15px; }
-            .user-bar { top: auto; bottom: 12px; transform: none; right: 15px; }
+            header { padding-bottom: 65px; }
+            .user-bar { top: auto; bottom: 12px; transform: none; right: 50%; transform: translateX(50%); }
         }
 
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
@@ -109,7 +96,7 @@
 
         .limit-hint { font-size: 0.8rem; color: #ff6b6b; font-weight: bold; margin-left: 8px; }
 
-        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; }
         .form-group input, .form-group textarea {
             width: 100%; padding: 10px; border: 1px solid #dfe4ea; border-radius: 6px; font-size: 0.9rem;
@@ -140,6 +127,7 @@
         }
         .vote-btn.voted { background-color: var(--accent-color); color: white; }
 
+        /* 状态标签样式 */
         .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-top: 5px; }
         .status-pending { background-color: #ffeaa7; color: #d63031; }
         .status-approved { background-color: #55efc4; color: #008148; }
@@ -158,48 +146,16 @@
             <div class="modal-title">校园运动会背景音乐征集须知</div>
             <div class="rule-box">
                 <p><strong>亲爱的同学们：</strong></p>
-                <p>1. <strong>点歌规则：</strong>默认每人 1 次点歌机会，如需额外额度可点击左上角使用兑换码。</p>
-                <p>2. <strong>曲目要求：</strong>请提交积极正能量的歌曲。</p>
-                <p>3. <strong>审核机制：</strong>投稿提交后请耐心等待校广播台审核。</p>
+                <p>1. <strong>点歌规则：</strong>每位同学在本次活动期间<strong>只有 1 次点歌机会</strong>，提交后不可撤回，请谨慎选择！</p>
+                <p>2. <strong>曲目要求：</strong>本次征集歌曲可以是激昂的歌曲，但歌曲要积极正能量，不要包含色情、暴力等不良因素。</p>
+                <p>3. <strong>审核机制：</strong>投稿提交后，请耐心等待审核，你可在我的点歌记录中查看歌曲当前状态，审核通过后的所有歌曲将会在页面播放单中进行公示，如有疑问，可以向校园广播电视台进行举报！</p>
             </div>
             <button class="btn-submit" onclick="closeRuleModal()">我已阅读并同意规则</button>
         </div>
     </div>
 
-    <!-- 🎫 兑换码兑换弹窗 -->
-    <div id="codeModal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div style="font-size: 2.5rem; margin-bottom: 10px;">🎫</div>
-            <div class="modal-title">输入兑换码额度</div>
-            <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">输入广播台发放的兑换码，可增加点歌次数！</p>
-            <div class="form-group">
-                <input type="text" id="inputRedeemCode" placeholder="请输入兑换码" style="text-transform: uppercase; text-align: center; font-size: 1.1rem; letter-spacing: 2px;">
-            </div>
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-submit" style="background:#b2bec3;" onclick="closeCodeModal()">取消</button>
-                <button class="btn-submit" onclick="submitRedeemCode()">立即兑换</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 🎉 点歌成功自定义感谢窗口 -->
-    <div id="thanksModal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div style="font-size: 3.5rem; margin-bottom: 10px;">🎉🎉🎉</div>
-            <div class="modal-title">点歌提交成功！</div>
-            <div id="thanksContent" style="font-size: 0.95rem; line-height: 1.6; color: #2d3436; margin: 15px 0; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                感谢你的热情参与！每一首歌都是运动赛场上的昂扬号角，你的推荐已成功送达广播站，预祝你在本届运动会中取得优异成绩！💪✨
-            </div>
-            <button class="btn-submit" onclick="closeThanksModal()">好的，知道啦！</button>
-        </div>
-    </div>
-
     <header>
-        <!-- 左上角兑换码按钮 -->
-        <button class="redeem-btn-top" onclick="openCodeModal()">🎫 兑换码</button>
-        
         <h1>🏃 校园运动会背景音乐征集</h1>
-        
         <div id="userBar" class="user-bar hidden">
             <span id="userEmail"></span>
             <button class="btn-logout" onclick="handleLogout()">退出登录</button>
@@ -228,13 +184,10 @@
         </div>
     </div>
 
-    <!-- 2. 主应用模块 -->
+    <!-- 2. 主应用模块 (左右两栏分布) -->
     <div id="appSection" class="container hidden">
-        <!-- 左侧区域 -->
+        <!-- 左侧：公告栏 + 点歌表单 + 个人点歌历史 -->
         <div>
-            <!-- 🖼️ 宣传卡片区域 (动态加载 announcements) -->
-            <div id="bannerContainer"></div>
-
             <!-- 📢 广播台公告栏 -->
             <div id="noticeContainer" class="notice-card hidden">
                 <span class="notice-icon">📢</span>
@@ -243,7 +196,7 @@
 
             <!-- 点歌表单 -->
             <div class="card">
-                <h2>🎵 运动会点歌 <span id="limitHint" class="limit-hint">加载额度中...</span></h2>
+                <h2>🎵 运动会点歌 <span id="limitHint" class="limit-hint">每人仅限 1 次</span></h2>
                 <form id="songForm">
                     <div class="form-group">
                         <label for="classAndName">班级 / 姓名 *</label>
@@ -265,7 +218,7 @@
                 </form>
             </div>
 
-            <!-- 我的点歌历史 -->
+            <!-- 我的点歌历史与审核进度追踪 -->
             <div class="card">
                 <h2>🔍 我的征集记录</h2>
                 <ul class="song-list" id="myHistoryList">
@@ -274,7 +227,7 @@
             </div>
         </div>
 
-        <!-- 右侧区域：公共歌曲榜 -->
+        <!-- 右侧：全校公共已通过点播榜 -->
         <div>
             <div class="card">
                 <h2>📜 运动会现场播放歌单 (审核通过)</h2>
@@ -286,19 +239,20 @@
     </div>
 
     <script>
+        // 1. 初始化 Supabase 参数
         const SUPABASE_URL = 'https://mnlmdlqfqyjhnqzjdjfg.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_4HrnKeD4I4NNrMypwy1cjA_js3mIwVS';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
         let isLoginMode = true;
-        let bonusQuota = 0; // 通过兑换码获取的额外额度
 
-        function closeRuleModal() { document.getElementById('ruleModal').classList.add('hidden'); }
-        function openCodeModal() { document.getElementById('codeModal').classList.remove('hidden'); }
-        function closeCodeModal() { document.getElementById('codeModal').classList.add('hidden'); }
-        function closeThanksModal() { document.getElementById('thanksModal').classList.add('hidden'); }
+        // 关闭规则弹窗
+        function closeRuleModal() {
+            document.getElementById('ruleModal').classList.add('hidden');
+        }
 
+        // 切换登录 / 注册模式 UI
         function switchAuthMode(mode) {
             isLoginMode = mode === 'login';
             document.getElementById('loginTab').classList.toggle('active', isLoginMode);
@@ -306,6 +260,7 @@
             document.getElementById('authBtn').innerText = isLoginMode ? '登录' : '注册';
         }
 
+        // 监听身份认证状态变化
         db.auth.onAuthStateChange((event, session) => {
             if (session && session.user) {
                 currentUser = session.user;
@@ -322,7 +277,6 @@
             document.getElementById('userBar').classList.remove('hidden');
             document.getElementById('userEmail').innerText = currentUser.email;
 
-            fetchBanners();
             fetchNotice();
             fetchPublicSongs();
             fetchMyHistory();
@@ -334,7 +288,7 @@
             document.getElementById('userBar').classList.add('hidden');
         }
 
-        // 登录 / 注册
+        // 2. 登录 / 注册逻辑
         document.getElementById('authForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const email = document.getElementById('authEmail').value;
@@ -342,48 +296,44 @@
             const authBtn = document.getElementById('authBtn');
 
             authBtn.disabled = true;
+            authBtn.innerText = '处理中...';
+
             try {
                 if (isLoginMode) {
                     const { error } = await db.auth.signInWithPassword({ email, password });
                     if (error) alert('登录失败: ' + error.message);
                 } else {
                     const { error } = await db.auth.signUp({ email, password });
-                    if (error) alert('注册失败: ' + error.message);
-                    else { alert('🎉 注册成功！请直接登录。'); switchAuthMode('login'); }
+                    if (error) {
+                        alert('注册失败: ' + error.message);
+                    } else {
+                        alert('🎉 注册成功！请直接登录。');
+                        switchAuthMode('login');
+                    }
                 }
-            } catch (err) { alert('网络异常: ' + err.message); }
-            finally { authBtn.disabled = false; }
+            } catch (err) {
+                alert('网络异常: ' + err.message);
+            } finally {
+                authBtn.disabled = false;
+                authBtn.innerText = isLoginMode ? '登录' : '注册';
+            }
         });
 
-        async function handleLogout() { await db.auth.signOut(); }
-
-        // 1. 加载宣传卡片 (announcements 表中的 image_url 项)
-        async function fetchBanners() {
-            const bannerContainer = document.getElementById('bannerContainer');
-            const { data } = await db.from('announcements').select('*').eq('is_active', true).not('image_url', 'is', null);
-
-            if (data && data.length > 0) {
-                bannerContainer.innerHTML = '';
-                data.forEach(item => {
-                    if (item.image_url) {
-                        const card = document.createElement('div');
-                        card.className = 'banner-card';
-                        card.innerHTML = `
-                            <a href="${item.link_url || '#'}" target="${item.link_url ? '_blank' : '_self'}" style="text-decoration:none;">
-                                <img src="${escapeHtml(item.image_url)}" alt="宣传海报" />
-                                ${item.title ? `<div class="banner-title">${escapeHtml(item.title)}</div>` : ''}
-                            </a>
-                        `;
-                        bannerContainer.appendChild(card);
-                    }
-                });
-            }
+        // 退出登录
+        async function handleLogout() {
+            await db.auth.signOut();
         }
 
-        // 2. 加载文字公告
+        // 3. 加载广播台最新公告
         async function fetchNotice() {
-            const { data } = await db.from('announcements').select('content').eq('is_active', true).not('content', 'is', null).order('created_at', { ascending: false }).limit(1);
-            if (data && data.length > 0 && data[0].content && data[0].content.trim() !== '') {
+            const { data, error } = await db
+                .from('sport2026_announcements')
+                .select('content')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (!error && data && data.length > 0 && data[0].content && data[0].content.trim() !== '') {
                 document.getElementById('noticeText').innerText = data[0].content;
                 document.getElementById('noticeContainer').classList.remove('hidden');
             } else {
@@ -391,50 +341,43 @@
             }
         }
 
-        // 3. 兑换码兑换核销逻辑 (匹配 redemption_codes 表)
-        async function submitRedeemCode() {
-            const codeInput = document.getElementById('inputRedeemCode').value.trim().toUpperCase();
-            if (!codeInput) { alert('请输入兑换码！'); return; }
-
-            const { data, error } = await db.from('redemption_codes').select('*').eq('code', codeInput).eq('is_used', false).single();
-
-            if (error || !data) {
-                alert('⚠️ 兑换码无效或已被兑换！');
-                return;
-            }
-
-            // 核销兑换码
-            const { error: updateErr } = await db.from('redemption_codes').update({ is_used: true }).eq('id', data.id);
-            if (updateErr) {
-                alert('兑换失败: ' + updateErr.message);
-                return;
-            }
-
-            bonusQuota += (data.quota || 1);
-            alert(`🎉 兑换成功！已为你增加 ${data.quota || 1} 次点歌额度。`);
-            closeCodeModal();
-            document.getElementById('inputRedeemCode').value = '';
-            fetchMyHistory();
-        }
-
-        // 查询用户提交总数
+        // 查询用户历史提交总数
         async function getUserSongCount() {
-            const { count } = await db.from('songs').select('id', { count: 'exact', head: true }).eq('voter_id', currentUser.id);
-            return count || 0;
+            const { count, error } = await db
+                .from('sport2026_songs')
+                .select('id', { count: 'exact', head: true })
+                .eq('voter_id', currentUser.id);
+
+            return error ? 0 : count;
         }
 
-        // 4. 加载公共榜单
+        // 4. 加载公共榜单 (status 为 approved 或 played)
         async function fetchPublicSongs() {
             const publicListEl = document.getElementById('publicSongList');
-            const { data: songs } = await db.from('songs').select('*').in('status', ['approved', 'played']).order('votes', { ascending: false });
 
-            if (!songs || songs.length === 0) {
+            const { data: songs, error } = await db
+                .from('sport2026_songs')
+                .select('*')
+                .in('status', ['approved', 'played'])
+                .order('votes', { ascending: false });
+
+            if (error || !songs) {
+                publicListEl.innerHTML = '<li style="text-align:center; color:red;">加载失败</li>';
+                return;
+            }
+
+            if (songs.length === 0) {
                 publicListEl.innerHTML = '<li style="text-align:center; color:#999; padding:20px;">暂无运动会播放歌单</li>';
                 return;
             }
 
             const songIds = songs.map(s => s.id);
-            const { data: userVotes } = await db.from('song_votes').select('song_id').eq('voter_id', currentUser.id).in('song_id', songIds);
+            const { data: userVotes } = await db
+                .from('sport2026_song_votes')
+                .select('song_id')
+                .eq('voter_id', currentUser.id)
+                .in('song_id', songIds);
+
             const votedSongIds = new Set((userVotes || []).map(v => v.song_id));
 
             publicListEl.innerHTML = '';
@@ -442,44 +385,57 @@
                 const isVoted = votedSongIds.has(song.id);
                 const li = document.createElement('li');
                 li.className = 'song-item';
+                
                 let audioPlayer = song.audio_url ? `<audio controls src="${song.audio_url}"></audio>` : '';
-                let statusBadge = song.status === 'played' ? `<span class="status-badge status-played">📻 现场已播放</span>` : `<span class="status-badge status-approved">🟢 待播放</span>`;
+                let statusBadge = song.status === 'played' 
+                    ? `<span class="status-badge status-played">📻 现场已播放</span>` 
+                    : `<span class="status-badge status-approved">🟢 审核通过 / 待播放</span>`;
 
                 li.innerHTML = `
                     <div class="song-info">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
-                        <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || song.requester || '匿名')}</div>
+                        <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || '匿名')}</div>
                         ${statusBadge}
                         ${audioPlayer}
                     </div>
-                    <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="toggleVote(${song.id}, ${song.votes || 0}, ${isVoted})">❤️ <span>${song.votes || 0}</span></button>
+                    <button class="vote-btn ${isVoted ? 'voted' : ''}" onclick="toggleVote(${song.id}, ${song.votes || 0}, ${isVoted})">
+                        ❤️ <span>${song.votes || 0}</span>
+                    </button>
                 `;
                 publicListEl.appendChild(li);
             });
         }
 
-        // 5. 加载个人历史与额度计算
+        // 5. 加载“我的点歌记录”
         async function fetchMyHistory() {
             const historyListEl = document.getElementById('myHistoryList');
             const submitBtn = document.getElementById('submitBtn');
             const userCount = await getUserSongCount();
-            const totalAllowed = 1 + bonusQuota;
 
-            if (userCount >= totalAllowed) {
-                document.getElementById('limitHint').innerText = `已用完额度 (${userCount}/${totalAllowed})`;
+            if (userCount >= 1) {
+                document.getElementById('limitHint').innerText = '已用完点歌额度 (1/1)';
                 submitBtn.disabled = true;
-                submitBtn.innerText = '点歌额度已用完 (可点左上角兑换)';
+                submitBtn.innerText = '您已完成运动会点歌 (每人限1次)';
                 submitBtn.style.backgroundColor = '#b2bec3';
             } else {
-                document.getElementById('limitHint').innerText = `额度: 可再点 ${totalAllowed - userCount} 首`;
+                document.getElementById('limitHint').innerText = '每人仅限 1 次';
                 submitBtn.disabled = false;
                 submitBtn.innerText = '提交运动会点歌';
                 submitBtn.style.backgroundColor = 'var(--primary-color)';
             }
 
-            const { data: mySongs } = await db.from('songs').select('*').eq('voter_id', currentUser.id).order('created_at', { ascending: false });
+            const { data: mySongs, error } = await db
+                .from('sport2026_songs')
+                .select('*')
+                .eq('voter_id', currentUser.id)
+                .order('created_at', { ascending: false });
 
-            if (!mySongs || mySongs.length === 0) {
+            if (error || !mySongs) {
+                historyListEl.innerHTML = '<li style="text-align:center; color:red;">加载历史失败</li>';
+                return;
+            }
+
+            if (mySongs.length === 0) {
                 historyListEl.innerHTML = '<li style="text-align:center; color:#999; padding:15px;">你还没有点歌哦</li>';
                 return;
             }
@@ -488,27 +444,44 @@
             mySongs.forEach((song) => {
                 const li = document.createElement('li');
                 li.className = 'song-item';
-                let statusBadge = `<span class="status-badge status-${song.status}">${song.status}</span>`;
+
+                let statusBadge = '';
+                let reasonNotice = '';
+
+                if (song.status === 'pending') {
+                    statusBadge = `<span class="status-badge status-pending">🟡 审核中</span>`;
+                } else if (song.status === 'approved') {
+                    statusBadge = `<span class="status-badge status-approved">🟢 已入选运动会歌单</span>`;
+                } else if (song.status === 'played') {
+                    statusBadge = `<span class="status-badge status-played">🟣 现场已播放</span>`;
+                } else if (song.status === 'rejected') {
+                    statusBadge = `<span class="status-badge status-rejected">🔴 未入选</span>`;
+                    if (song.reject_reason) {
+                        reasonNotice = `<div style="font-size:0.8rem; color:#d63031; margin-top:6px; background:#ffeaa7; padding:4px 8px; border-radius:4px;">⚠️ 说明：${escapeHtml(song.reject_reason)}</div>`;
+                    }
+                }
+
                 li.innerHTML = `
                     <div class="song-info">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
                         <div class="song-artist">歌手: ${escapeHtml(song.artist)}</div>
                         <div>${statusBadge}</div>
+                        ${reasonNotice}
                     </div>
                 `;
                 historyListEl.appendChild(li);
             });
         }
 
-        // 6. 提交点歌表单（成功后触发感谢弹窗）
+        // 6. 提交点歌处理
         document.getElementById('songForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
 
             try {
                 const count = await getUserSongCount();
-                if (count >= (1 + bonusQuota)) {
-                    alert('⚠️ 点歌额度不足！可以点击左上角使用兑换码。');
+                if (count >= 1) {
+                    alert('⚠️ 每位同学在运动会期间仅有 1 次点歌机会，请勿重复提交！');
                     return;
                 }
 
@@ -521,13 +494,22 @@
 
                 if (file) {
                     const fileName = `${Date.now()}_${file.name}`;
-                    const { error: uploadError } = await db.storage.from('music').upload(fileName, file);
-                    if (uploadError) throw new Error('音频上传失败: ' + uploadError.message);
-                    const { data: publicUrlData } = db.storage.from('music').getPublicUrl(fileName);
+                    const { error: uploadError } = await db.storage
+                        .from('sport2026-music')
+                        .upload(fileName, file);
+
+                    if (uploadError) {
+                        throw new Error('音频上传失败: ' + uploadError.message);
+                    }
+
+                    const { data: publicUrlData } = db.storage
+                        .from('sport2026-music')
+                        .getPublicUrl(fileName);
+
                     audioUrl = publicUrlData.publicUrl;
                 }
 
-                const { error } = await db.from('songs').insert([{
+                const { error } = await db.from('sport2026_songs').insert([{
                     class_and_name: document.getElementById('classAndName').value,
                     song_name: document.getElementById('songName').value,
                     artist: document.getElementById('artist').value,
@@ -537,35 +519,40 @@
                     votes: 0
                 }]);
 
-                if (error) throw new Error('提交失败: ' + error.message);
+                if (error) {
+                    throw new Error('提交失败: ' + error.message);
+                }
 
+                alert('🎉 提交成功！请等待广播站审核。');
                 this.reset();
                 fetchMyHistory();
-                
-                // 弹出自定义感谢窗口
-                document.getElementById('thanksModal').classList.remove('hidden');
 
-            } catch (err) { alert(err.message || '提交失败，请重试'); }
-            finally {
-                if (await getUserSongCount() < (1 + bonusQuota)) {
+            } catch (err) {
+                alert(err.message || '提交失败，请重试');
+            } finally {
+                if (await getUserSongCount() < 1) {
                     btn.disabled = false;
                     btn.innerText = '提交运动会点歌';
                 }
             }
         });
 
+        // 7. 点赞逻辑
         async function toggleVote(songId, currentVotes, isVoted) {
             if (isVoted) {
-                await db.from('song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
-                await db.from('songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
+                await db.from('sport2026_song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
+                await db.from('sport2026_songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
             } else {
-                await db.from('song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
-                await db.from('songs').update({ votes: currentVotes + 1 }).eq('id', songId);
+                await db.from('sport2026_song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
+                await db.from('sport2026_songs').update({ votes: currentVotes + 1 }).eq('id', songId);
             }
             fetchPublicSongs();
         }
 
-        function escapeHtml(str) { return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+        // XSS 过滤辅助函数
+        function escapeHtml(str) {
+            return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
     </script>
 </body>
 </html>
