@@ -2,122 +2,912 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="广播台审核">
     <title>广播台后台管理端</title>
+
+    <!-- 引入 Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #6c5ce7; --success: #00b894; --danger: #d63031; --dark: #2d3436; --gray: #636e72; }
+        :root {
+            --primary: #6c5ce7;
+            --success: #00b894;
+            --warning: #fdcb6e;
+            --danger: #d63031;
+            --dark: #2d3436;
+            --light: #f8f9fa;
+            --gray: #636e72;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #f1f2f6; color: var(--dark); padding-bottom: 30px; }
-        header { background: linear-gradient(135deg, #4834d4, var(--primary)); color: white; padding: 20px 15px; text-align: center; position: relative; }
+
+        header {
+            background: linear-gradient(135deg, #4834d4, var(--primary));
+            color: white; padding: 20px 15px; text-align: center;
+            position: relative; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        header h1 { font-size: 1.3rem; }
+
+        .user-bar {
+            position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+            display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+        }
+        .btn-logout {
+            background: rgba(255,255,255,0.2); color: white; border: 1px solid white;
+            padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.75rem;
+        }
+
         .container { max-width: 700px; margin: 15px auto; padding: 0 12px; }
-        .login-card { background: white; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-top: 40px; }
-        .nav-tabs { display: flex; background: white; border-radius: 10px; padding: 5px; margin-bottom: 15px; overflow-x: auto; }
-        .tab-btn { flex: 1; border: none; background: transparent; padding: 10px 6px; font-size: 0.8rem; font-weight: bold; color: #747d8c; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+
+        .login-card {
+            background: white; border-radius: 12px; padding: 25px 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-top: 40px; max-width: 450px; margin-left: auto; margin-right: auto;
+        }
+        .login-card h2 { font-size: 1.2rem; text-align: center; color: var(--primary); margin-bottom: 20px; }
+
+        /* 顶部统计面板 */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: white; padding: 12px 8px; border-radius: 10px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        .stat-card .num { font-size: 1.2rem; font-weight: bold; color: var(--primary); }
+        .stat-card .label { font-size: 0.75rem; color: var(--gray); margin-top: 2px; }
+
+        /* 搜索与工具栏 */
+        .toolbar { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .search-input { flex: 1; padding: 8px 12px; border: 1px solid #dfe4ea; border-radius: 8px; font-size: 0.85rem; min-width: 180px; }
+        .btn-export { background: #27ae60; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+
+        /* Tab 导航栏 */
+        .nav-tabs {
+            display: flex; background: white; border-radius: 10px; padding: 5px;
+            margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow-x: auto;
+        }
+        .tab-btn {
+            flex: 1; border: none; background: transparent; padding: 10px 6px;
+            font-size: 0.8rem; font-weight: bold; color: #747d8c; border-radius: 8px; cursor: pointer;
+            white-space: nowrap; text-align: center;
+        }
         .tab-btn.active { background: var(--primary); color: white; }
+
+        /* 卡片样式 */
         .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 3px 8px rgba(0,0,0,0.04); }
+        .song-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 4px; }
+        .song-meta { font-size: 0.85rem; color: #636e72; margin-bottom: 6px; }
+        .song-msg { font-size: 0.85rem; color: #2d3436; background: #f8f9fa; padding: 8px; border-radius: 6px; margin: 6px 0; border-left: 3px solid var(--primary); }
+
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        .badge-pending { background: #ffeaa7; color: #d63031; }
+        .badge-approved { background: #55efc4; color: #008148; }
+        .badge-played { background: #a29bfe; color: #2d3436; }
+        .badge-rejected { background: #ff7675; color: #ffffff; }
+
+        audio { width: 100%; height: 36px; margin: 10px 0; }
+
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .btn { flex: 1; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: center; min-width: 80px; }
+        .btn-approve { background: var(--success); color: white; }
+        .btn-reject { background: #e17055; color: white; }
+        .btn-delete { background: #fab1a0; color: #d63031; }
+        .btn-play { background: var(--primary); color: white; }
+
+        /* 表单样式 */
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 0.85rem; }
-        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #dfe4ea; border-radius: 8px; font-size: 0.9rem; }
-        .btn-submit { width: 100%; background: var(--primary); color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%; padding: 10px; border: 1px solid #dfe4ea; border-radius: 8px; font-size: 0.9rem;
+        }
+        .form-group textarea { height: 90px; }
+        .btn-submit { width: 100%; background: var(--primary); color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+
+        .reject-reason-box { background-color: #fff0f0; border-left: 3px solid #ff7675; padding: 6px 10px; font-size: 0.8rem; color: #d63031; margin: 6px 0; border-radius: 4px; }
+        .empty-hint { text-align: center; color: #b2bec3; padding: 30px 0; }
         .hidden { display: none !important; }
+
+        /* 内容与图片预览样式 */
+        .img-preview { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; margin-right: 12px; flex-shrink: 0; }
+        .banner-preview { width: 120px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; margin-right: 12px; flex-shrink: 0; }
+        .status-upcoming { color: #0984e3; font-weight: bold; }
+        .status-ongoing { color: #00b894; font-weight: bold; }
+        .status-ended { color: #b2bec3; font-weight: bold; }
+        
+        .style-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: normal; margin-left: 6px; }
+        .style-badge-icon { background: #f3f4f6; color: #4b5563; }
+        .style-badge-cover { background: #e0e7ff; color: #4338ca; }
+
+        /* 兑换码状态 Badge */
+        .badge-code-used { background: #ffeaa7; color: #d63031; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
+        .badge-code-valid { background: #55efc4; color: #008148; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
     </style>
 </head>
 <body>
+
     <header>
         <h1>📻 广播台综合管理后台</h1>
+        <div id="userBar" class="user-bar hidden">
+            <button class="btn-logout" onclick="handleLogout()">退出登录</button>
+        </div>
     </header>
 
     <div class="container">
-        <!-- 登录框 -->
+        <!-- 1. 管理员登录卡片 -->
         <div id="loginSection" class="login-card">
-            <h2 style="text-align:center; color:var(--primary); margin-bottom:15px;">🔐 管理员登录</h2>
+            <h2>🔐 管理员身份验证</h2>
             <form id="loginForm">
-                <div class="form-group"><label>管理员邮箱</label><input type="email" id="adminEmail" value="admin@163.com" required></div>
-                <div class="form-group"><label>密码</label><input type="password" id="adminPassword" required></div>
-                <button type="submit" class="btn-submit">登录后台</button>
+                <div class="form-group">
+                    <label for="adminEmail">管理员邮箱</label>
+                    <input type="email" id="adminEmail" placeholder="admin@163.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="adminPassword">密码</label>
+                    <input type="password" id="adminPassword" placeholder="请输入管理员密码" required>
+                </div>
+                <button type="submit" class="btn-submit" id="loginBtn">登录后台</button>
             </form>
         </div>
 
-        <!-- 主界面 -->
+        <!-- 2. 控制台主界面 -->
         <div id="dashboardSection" class="hidden">
-            <div class="nav-tabs">
-                <button class="tab-btn active" onclick="switchTab('banner')">🖼️ 宣传卡片 (announcements)</button>
-                <button class="tab-btn" onclick="switchTab('code')">🎫 兑换码 (redemption_codes)</button>
+            
+            <!-- 数据统计概览面板 -->
+            <div class="stats-grid">
+                <div class="stat-card"><div class="num" id="statPending">0</div><div class="label">待审核</div></div>
+                <div class="stat-card"><div class="num" id="statApproved">0</div><div class="label">待播放</div></div>
+                <div class="stat-card"><div class="num" id="statPlayed">0</div><div class="label">已播放</div></div>
+                <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">总点歌量</div></div>
             </div>
 
-            <!-- 🖼️ 宣传卡片发布 (写入 announcements 表) -->
-            <div id="bannerTab">
+            <!-- 标签页导航 -->
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchTab('pending')">待审核 <span id="pendingCount"></span></button>
+                <button class="tab-btn" onclick="switchTab('approved')">待播放榜单</button>
+                <button class="tab-btn" onclick="switchTab('played')">已播放历史</button>
+                <button class="tab-btn" onclick="switchTab('rejected')">已驳回</button>
+                <button class="tab-btn" onclick="switchTab('content')">内容发布与管理</button>
+                <button class="tab-btn" onclick="switchTab('banner')">🖼️ 宣传卡片</button>
+                <button class="tab-btn" onclick="switchTab('code')">🎫 兑换码管理</button>
+                <button class="tab-btn" onclick="switchTab('notice')">公告设置</button>
+            </div>
+
+            <!-- 检索与导出工具栏 -->
+            <div id="toolbar" class="toolbar">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索歌名、歌手、点歌人..." oninput="handleSearch()">
+                <button class="btn-export" onclick="exportApprovedCSV()">📥 导出待播放名单 (CSV)</button>
+            </div>
+
+            <!-- 待审核列表 -->
+            <div id="pendingTab" class="tab-content">
+                <div id="pendingList"><div class="empty-hint">加载中...</div></div>
+            </div>
+
+            <!-- 待播放列表 -->
+            <div id="approvedTab" class="tab-content hidden">
+                <div id="approvedList"><div class="empty-hint">加载中...</div></div>
+            </div>
+
+            <!-- 已播放列表 -->
+            <div id="playedTab" class="tab-content hidden">
+                <div id="playedList"><div class="empty-hint">加载中...</div></div>
+            </div>
+
+            <!-- 已驳回列表 -->
+            <div id="rejectedTab" class="tab-content hidden">
+                <div id="rejectedList"><div class="empty-hint">加载中...</div></div>
+            </div>
+
+            <!-- 校园资讯与活动管理 -->
+            <div id="contentTab" class="tab-content hidden">
+                <!-- 发布表单 -->
                 <div class="card">
-                    <h3>➕ 发布宣传卡片海报</h3>
-                    <form id="bannerForm">
-                        <div class="form-group"><label>海报标题</label><input type="text" id="bannerTitle" required></div>
-                        <div class="form-group"><label>图片链接 (image_url)</label><input type="text" id="bannerImageUrl" required></div>
-                        <div class="form-group"><label>跳转链接 (link_url)</label><input type="text" id="bannerLinkUrl"></div>
-                        <button type="submit" class="btn-submit">发布卡片</button>
+                    <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">➕ 发布新活动 / 校园资讯</h3>
+                    <form id="contentForm">
+                        <div class="form-group">
+                            <label>模块类型</label>
+                            <select id="contentType" onchange="toggleActivityFields()">
+                                <option value="activity">🎉 校园活动 (activities)</option>
+                                <option value="news">📰 校园资讯 (news)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>标题</label>
+                            <input type="text" id="contentTitle" placeholder="请输入标题" required>
+                        </div>
+                        <div class="form-group">
+                            <label>分类标签 / Emoji 图标</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="contentTag" placeholder="如：广播点歌 / 校园快讯" required style="flex:2;">
+                                <input type="text" id="contentIcon" placeholder="如：🎵 / 📢" style="flex:1;">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>🖼️ 封面图片链接 (图片 URL)</label>
+                            <input type="text" id="contentCoverUrl" placeholder="如：https://example.com/image.jpg 或图床链接">
+                        </div>
+
+                        <div class="form-group">
+                            <label>🎨 卡片展示样式</label>
+                            <select id="cardStyleSelect">
+                                <option value="icon">小图标模式 (默认，左上角显示图标/图片)</option>
+                                <option value="full_cover">大图铺满背景模式 (图片全屏背景 + 白色文字)</option>
+                            </select>
+                        </div>
+
+                        <div id="activityOnlyFields">
+                            <div class="form-group">
+                                <label>活动时间说明</label>
+                                <input type="text" id="contentEventTime" placeholder="例如：本周五 16:30 - 18:00 或 2026-09-15">
+                            </div>
+                            <div class="form-group">
+                                <label>活动状态</label>
+                                <select id="contentStatus">
+                                    <option value="upcoming">🔵 即将开始</option>
+                                    <option value="ongoing">🟢 进行中</option>
+                                    <option value="ended">⚪ 已结束</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>🔗 点击跳转链接 (可填任意网址/微信文章/小程序路径)</label>
+                            <input type="text" id="contentLink" placeholder="例如: https://... 或直接贴链接">
+                        </div>
+                        <div class="form-group">
+                            <label>简介 / 描述</label>
+                            <textarea id="contentDesc" placeholder="请输入详细简介或新闻内容..."></textarea>
+                        </div>
+                        <button type="submit" class="btn-submit">立即发布</button>
                     </form>
+                </div>
+
+                <!-- 已发布内容列表管理 -->
+                <div class="card" style="margin-top:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h3 style="font-size:1rem; color:var(--primary);">📋 已发布内容管理</h3>
+                        <select id="manageTypeFilter" onchange="fetchPublishedContent()" style="width:140px; padding:6px; border-radius:6px; border:1px solid #dfe4ea; font-size:0.8rem;">
+                            <option value="activity">🎉 校园活动</option>
+                            <option value="news">📰 校园资讯</option>
+                        </select>
+                    </div>
+                    <div id="publishedContentList"><div class="empty-hint">加载中...</div></div>
                 </div>
             </div>
 
-            <!-- 🎫 兑换码管理 (写入 redemption_codes 表) -->
-            <div id="codeTab" class="hidden">
+            <!-- 全局宣传卡片 (Banners) 管理 -->
+            <div id="bannerTab" class="tab-content hidden">
                 <div class="card">
-                    <h3>➕ 生成兑换码</h3>
+                    <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">🖼️ 发布/更新全局宣传横幅卡片</h3>
+                    <form id="bannerForm">
+                        <div class="form-group">
+                            <label>卡片标题 / 活动名称</label>
+                            <input type="text" id="bannerTitle" placeholder="例如：运动会专题点歌通道现已开启！" required>
+                        </div>
+                        <div class="form-group">
+                            <label>横幅图片链接 (Image URL)</label>
+                            <input type="text" id="bannerImageUrl" placeholder="例如：https://example.com/banner.jpg" required>
+                        </div>
+                        <div class="form-group">
+                            <label>🔗 点击跳转链接 (可填网址/文章)</label>
+                            <input type="text" id="bannerLinkUrl" placeholder="例如：https://... (选填)">
+                        </div>
+                        <button type="submit" class="btn-submit">发布宣传卡片</button>
+                    </form>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="font-size:1rem; color:var(--primary); margin-bottom:12px;">📋 当前上线宣传卡片</h3>
+                    <div id="bannerList"><div class="empty-hint">加载中...</div></div>
+                </div>
+            </div>
+
+            <!-- 兑换码管理 -->
+            <div id="codeTab" class="tab-content hidden">
+                <div class="card">
+                    <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">🎫 生成点歌额度兑换码</h3>
                     <form id="codeForm">
-                        <div class="form-group"><label>兑换码字符</label><input type="text" id="codeString" placeholder="例如：SPORT2026" required></div>
-                        <div class="form-group"><label>增加额度</label><input type="number" id="codeQuota" value="1" min="1" required></div>
+                        <div class="form-group">
+                            <label>兑换码字符 (可自动生成或自定义)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="codeString" placeholder="例如: MUSIC2026" required style="flex:2;">
+                                <button type="button" class="btn" style="background:#6c5ce7; color:white; flex:1;" onclick="generateRandomCode()">🎲 随机生成</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>赠送点歌额度数量</label>
+                            <input type="number" id="codeQuota" value="1" min="1" max="10" required>
+                        </div>
                         <button type="submit" class="btn-submit">生成兑换码</button>
                     </form>
                 </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="font-size:1rem; color:var(--primary); margin-bottom:12px;">📋 兑换码列表</h3>
+                    <div id="codeList"><div class="empty-hint">加载中...</div></div>
+                </div>
             </div>
+
+            <!-- 公告管理 -->
+            <div id="noticeTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="form-group">
+                        <label>发布/更新首页广播公告</label>
+                        <textarea id="noticeInput" placeholder="输入广播台公告内容（例如：本周点歌截至周五18:00...）"></textarea>
+                    </div>
+                    <button class="btn-submit" onclick="publishNotice()">更新公告</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
+        const ADMIN_EMAIL = 'admin@163.com';
         const SUPABASE_URL = 'https://mnlmdlqfqyjhnqzjdjfg.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_4HrnKeD4I4NNrMypwy1cjA_js3mIwVS';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('adminEmail').value;
-            const password = document.getElementById('adminPassword').value;
-            const { error } = await db.auth.signInWithPassword({ email, password });
-            if (!error) {
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('dashboardSection').classList.remove('hidden');
-            } else alert('登录失败: ' + error.message);
+        let activeTab = 'pending';
+        let rawSongsCache = [];
+
+        // 监听登录状态
+        db.auth.onAuthStateChange((event, session) => {
+            if (session && session.user) {
+                if (session.user.email === ADMIN_EMAIL) {
+                    showDashboard();
+                } else {
+                    alert('⚠️ 账号 ' + session.user.email + ' 无管理员访问权限！');
+                    db.auth.signOut();
+                    showLoginForm();
+                }
+            } else {
+                showLoginForm();
+            }
         });
 
-        function switchTab(tab) {
-            document.getElementById('bannerTab').classList.toggle('hidden', tab !== 'banner');
-            document.getElementById('codeTab').classList.toggle('hidden', tab !== 'code');
+        function showDashboard() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('userBar').classList.remove('hidden');
+            updateStats();
+            fetchPendingSongs();
         }
 
-        // 添加宣传海报
-        document.getElementById('bannerForm').addEventListener('submit', async (e) => {
+        function showLoginForm() {
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+            document.getElementById('userBar').classList.add('hidden');
+        }
+
+        // 登录逻辑
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const { error } = await db.from('announcements').insert([{
-                title: document.getElementById('bannerTitle').value,
-                image_url: document.getElementById('bannerImageUrl').value,
-                link_url: document.getElementById('bannerLinkUrl').value,
-                is_active: true
-            }]);
-            if (!error) { alert('🎉 宣传卡片发布成功！'); e.target.reset(); }
-            else alert('发布失败: ' + error.message);
+            const email = document.getElementById('adminEmail').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            const btn = document.getElementById('loginBtn');
+
+            if (email !== ADMIN_EMAIL) {
+                alert('⚠️ 只有管理员账号 (' + ADMIN_EMAIL + ') 允许登录！');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = '正在验证...';
+            const { error } = await db.auth.signInWithPassword({ email, password });
+            if (error) alert('登录失败: ' + error.message);
+            btn.disabled = false;
+            btn.innerText = '登录后台';
         });
 
-        // 添加兑换码
-        document.getElementById('codeForm').addEventListener('submit', async (e) => {
+        async function handleLogout() { await db.auth.signOut(); }
+
+        // 刷新概览统计数据
+        async function updateStats() {
+            const { data: songs } = await db.from('songs').select('status');
+            if (!songs) return;
+
+            const pending = songs.filter(s => s.status === 'pending').length;
+            const approved = songs.filter(s => s.status === 'approved').length;
+            const played = songs.filter(s => s.status === 'played').length;
+
+            document.getElementById('statPending').innerText = pending;
+            document.getElementById('statApproved').innerText = approved;
+            document.getElementById('statPlayed').innerText = played;
+            document.getElementById('statTotal').innerText = songs.length;
+        }
+
+        // 切换 Tab 页
+        function switchTab(tabName) {
+            activeTab = tabName;
+            const tabs = ['pending', 'approved', 'played', 'rejected', 'content', 'banner', 'code', 'notice'];
+            document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', tabs[idx] === tabName);
+            });
+
+            tabs.forEach(t => {
+                const el = document.getElementById(t + 'Tab');
+                if (el) el.classList.toggle('hidden', t !== tabName);
+            });
+
+            // 控制搜索栏在资讯/卡片/兑换码/公告页隐藏
+            document.getElementById('toolbar').classList.toggle('hidden', ['content', 'banner', 'code', 'notice'].includes(tabName));
+
+            document.getElementById('searchInput').value = '';
+            if (tabName === 'pending') fetchPendingSongs();
+            if (tabName === 'approved') fetchApprovedSongs();
+            if (tabName === 'played') fetchPlayedSongs();
+            if (tabName === 'rejected') fetchRejectedSongs();
+            if (tabName === 'content') fetchPublishedContent();
+            if (tabName === 'banner') fetchBanners();
+            if (tabName === 'code') fetchRedemptionCodes();
+            if (tabName === 'notice') fetchCurrentNotice();
+        }
+
+        // 切换模块类型时控制显示专属字段
+        function toggleActivityFields() {
+            const type = document.getElementById('contentType').value;
+            document.getElementById('activityOnlyFields').style.display = type === 'activity' ? 'block' : 'none';
+        }
+
+        // 搜索处理
+        function handleSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const filtered = rawSongsCache.filter(s => 
+                (s.song_name && s.song_name.toLowerCase().includes(query)) ||
+                (s.artist && s.artist.toLowerCase().includes(query)) ||
+                (s.requester && s.requester.toLowerCase().includes(query))
+            );
+            renderSongList(filtered, activeTab);
+        }
+
+        // 获取待审核歌曲列表
+        async function fetchPendingSongs() {
+            const listEl = document.getElementById('pendingList');
+            listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
+            const { data: songs } = await db.from('songs').select('*').eq('status', 'pending').order('created_at', { ascending: true });
+            rawSongsCache = songs || [];
+            document.getElementById('pendingCount').innerText = rawSongsCache.length ? `(${rawSongsCache.length})` : '';
+            renderSongList(rawSongsCache, 'pending');
+        }
+
+        // 获取待播放榜单
+        async function fetchApprovedSongs() {
+            const listEl = document.getElementById('approvedList');
+            listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
+            const { data: songs } = await db.from('songs').select('*').eq('status', 'approved').order('votes', { ascending: false });
+            rawSongsCache = songs || [];
+            renderSongList(rawSongsCache, 'approved');
+        }
+
+        // 获取已播放历史
+        async function fetchPlayedSongs() {
+            const listEl = document.getElementById('playedList');
+            listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
+            const { data: songs } = await db.from('songs').select('*').eq('status', 'played').order('created_at', { ascending: false });
+            rawSongsCache = songs || [];
+            renderSongList(rawSongsCache, 'played');
+        }
+
+        // 获取已驳回列表
+        async function fetchRejectedSongs() {
+            const listEl = document.getElementById('rejectedList');
+            listEl.innerHTML = '<div class="empty-hint">加载中...</div>';
+            const { data: songs } = await db.from('songs').select('*').eq('status', 'rejected').order('created_at', { ascending: false });
+            rawSongsCache = songs || [];
+            renderSongList(rawSongsCache, 'rejected');
+        }
+
+        // 渲染歌曲列表核心函数
+        function renderSongList(songs, tab) {
+            const containerMap = {
+                pending: 'pendingList',
+                approved: 'approvedList',
+                played: 'playedList',
+                rejected: 'rejectedList'
+            };
+            const listEl = document.getElementById(containerMap[tab]);
+            if (!listEl) return;
+
+            if (!songs || songs.length === 0) {
+                listEl.innerHTML = '<div class="empty-hint">暂无记录</div>';
+                return;
+            }
+
+            listEl.innerHTML = '';
+            songs.forEach(song => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                
+                const audioPlayer = song.audio_url 
+                    ? `<audio controls src="${song.audio_url}"></audio>` 
+                    : '<div style="font-size:0.8rem; color:#999; margin:8px 0;">(未上传音频)</div>';
+
+                const requesterText = song.requester ? ` | 点歌人: ${escapeHtml(song.requester)}` : '';
+                const messageHtml = song.message ? `<div class="song-msg">💬 寄语: ${escapeHtml(song.message)}</div>` : '';
+                const reasonHtml = song.reject_reason ? `<div class="reject-reason-box">驳回原因: ${escapeHtml(song.reject_reason)}</div>` : '';
+
+                let actionBtns = '';
+                if (tab === 'pending') {
+                    actionBtns = `
+                        <button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">🟢 通过</button>
+                        <button class="btn btn-reject" onclick="rejectSong(${song.id})">🔴 驳回</button>
+                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除(恢复额度)</button>
+                    `;
+                } else if (tab === 'approved') {
+                    actionBtns = `
+                        <button class="btn btn-play" onclick="updateStatus(${song.id}, 'played')">📻 标记为已播放</button>
+                        <button class="btn btn-reject" onclick="rejectSong(${song.id})">🔴 驳回</button>
+                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除</button>
+                    `;
+                } else if (tab === 'played') {
+                    actionBtns = `<button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 彻底删除</button>`;
+                } else if (tab === 'rejected') {
+                    actionBtns = `
+                        <button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">🟢 重新通过</button>
+                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 彻底删除</button>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
+                        <span class="status-badge badge-${tab}">${tab === 'approved' ? '🟢 待播放 (赞: ' + (song.votes || 0) + ')' : tab}</span>
+                    </div>
+                    <div class="song-meta">歌手: ${escapeHtml(song.artist)}${requesterText}</div>
+                    ${messageHtml}
+                    ${reasonHtml}
+                    ${audioPlayer}
+                    <div class="btn-group">${actionBtns}</div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        // 更新状态与删除
+        async function updateStatus(songId, status) {
+            const { error } = await db.from('songs').update({ status, reject_reason: null }).eq('id', songId);
+            if (error) alert('操作失败: ' + error.message);
+            updateStats();
+            refreshCurrentTab();
+        }
+
+        async function rejectSong(songId) {
+            const reason = prompt('请输入未通过原因（选填，如：版权限制 / 内容不规范）：');
+            if (reason === null) return;
+            const { error } = await db.from('songs').update({ status: 'rejected', reject_reason: reason }).eq('id', songId);
+            if (error) alert('驳回失败: ' + error.message);
+            updateStats();
+            refreshCurrentTab();
+        }
+
+        async function deleteSong(songId) {
+            if (!confirm('确定彻底删除该条记录吗？删除后该学生本周将恢复点歌额度。')) return;
+            const { error } = await db.from('songs').delete().eq('id', songId);
+            if (error) alert('删除失败: ' + error.message);
+            updateStats();
+            refreshCurrentTab();
+        }
+
+        function refreshCurrentTab() {
+            if (activeTab === 'pending') fetchPendingSongs();
+            if (activeTab === 'approved') fetchApprovedSongs();
+            if (activeTab === 'played') fetchPlayedSongs();
+            if (activeTab === 'rejected') fetchRejectedSongs();
+        }
+
+        // 导出 CSV 榜单
+        async function exportApprovedCSV() {
+            const { data: songs } = await db.from('songs').select('*').eq('status', 'approved').order('votes', { ascending: false });
+            if (!songs || !songs.length) { alert('当前没有待播放的歌曲'); return; }
+
+            let csvContent = "\uFEFF歌名,歌手,点歌人,留言寄语,得票数,音频链接\n";
+            songs.forEach(s => {
+                csvContent += `"${s.song_name || ''}","${s.artist || ''}","${s.requester || ''}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `广播台待播放榜单_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 活动/资讯发布提交逻辑
+        document.getElementById('contentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            const type = document.getElementById('contentType').value;
+            const title = document.getElementById('contentTitle').value.trim();
+            const tag = document.getElementById('contentTag').value.trim();
+            const icon = document.getElementById('contentIcon').value.trim() || '📰';
+            const coverUrl = document.getElementById('contentCoverUrl').value.trim();
+            const cardStyle = document.getElementById('cardStyleSelect').value;
+            const linkUrl = document.getElementById('contentLink').value.trim();
+            const desc = document.getElementById('contentDesc').value.trim();
+
+            const table = type === 'activity' ? 'activities' : 'news';
+            let payload = { 
+                title, 
+                category: tag, 
+                cover_icon: icon, 
+                cover_url: coverUrl, 
+                card_style: cardStyle, 
+                link_url: linkUrl 
+            };
+
+            if (type === 'activity') {
+                const eventTime = document.getElementById('contentEventTime').value.trim();
+                const status = document.getElementById('contentStatus').value;
+                payload = { 
+                    ...payload, 
+                    description: desc, 
+                    event_time: eventTime, 
+                    status: status 
+                };
+            } else {
+                payload = { 
+                    ...payload, 
+                    summary: desc 
+                };
+            }
+
+            const { error } = await db.from(table).insert([payload]);
+            if (error) {
+                alert('发布失败: ' + error.message);
+            } else {
+                alert('🎉 内容发布成功！');
+                document.getElementById('contentForm').reset();
+                fetchPublishedContent();
+            }
+        });
+
+        // 获取已发布内容列表
+        async function fetchPublishedContent() {
+            const type = document.getElementById('manageTypeFilter').value;
+            const container = document.getElementById('publishedContentList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const table = type === 'activity' ? 'activities' : 'news';
+            const { data, error } = await db.from(table).select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无已发布数据</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                const imgHtml = item.cover_url 
+                    ? `<img src="${escapeHtml(item.cover_url)}" class="img-preview" alt="封面" />` 
+                    : '';
+
+                const cardStyleBadge = item.card_style === 'full_cover' 
+                    ? '<span class="style-badge style-badge-cover">🖼️ 铺满背景</span>' 
+                    : '<span class="style-badge style-badge-icon">📌 图标模式</span>';
+
+                let extraInfo = '';
+                if (type === 'activity') {
+                    let statusLabel = '';
+                    if (item.status === 'upcoming') statusLabel = '<span class="status-upcoming">[🔵 即将开始]</span>';
+                    else if (item.status === 'ongoing') statusLabel = '<span class="status-ongoing">[🟢 进行中]</span>';
+                    else if (item.status === 'ended') statusLabel = '<span class="status-ended">[⚪ 已结束]</span>';
+                    else statusLabel = `<span class="status-ongoing">[${escapeHtml(item.status || '进行中')}]</span>`;
+
+                    const timeText = item.event_time ? ` | ⏱️ ${escapeHtml(item.event_time)}` : '';
+                    extraInfo = `<div style="font-size:0.75rem; color:#666; margin-top:3px;">状态: ${statusLabel}${timeText}</div>`;
+                }
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; flex:1; padding-right:10px; overflow:hidden;">
+                        ${imgHtml}
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:0.9rem; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">
+                                ${item.cover_icon || '📌'} ${escapeHtml(item.title)} ${cardStyleBadge}
+                            </div>
+                            <div style="font-size:0.75rem; color:#888; margin-top:2px;">
+                                标签: ${escapeHtml(item.category || '无')} | 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}
+                            </div>
+                            ${extraInfo}
+                        </div>
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deletePublishedContent('${table}', ${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function deletePublishedContent(table, id) {
+            if (!confirm('确定要删除此条发布内容吗？删除后小程序前端将同步下架。')) return;
+            const { error } = await db.from(table).delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchPublishedContent();
+        }
+
+        // ==================== 🖼️ 宣传卡片 (Banners) 管理逻辑 ====================
+        document.getElementById('bannerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const title = document.getElementById('bannerTitle').value.trim();
+            const imageUrl = document.getElementById('bannerImageUrl').value.trim();
+            const linkUrl = document.getElementById('bannerLinkUrl').value.trim();
+
+            const { error } = await db.from('announcements').insert([{
+                title: title,
+                image_url: imageUrl,
+                link_url: linkUrl,
+                is_active: true
+            }]);
+
+            if (error) {
+                alert('宣传卡片发布失败: ' + error.message);
+            } else {
+                alert('🎉 宣传卡片发布成功！');
+                document.getElementById('bannerForm').reset();
+                fetchBanners();
+            }
+        });
+
+        async function fetchBanners() {
+            const container = document.getElementById('bannerList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const { data, error } = await db.from('announcements').select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无已发宣传卡片</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                const imgHtml = item.image_url 
+                    ? `<img src="${escapeHtml(item.image_url)}" class="banner-preview" alt="卡片" />` 
+                    : '';
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; flex:1; padding-right:10px; overflow:hidden;">
+                        ${imgHtml}
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:0.9rem;">${escapeHtml(item.title || '宣传卡片')}</div>
+                            <div style="font-size:0.75rem; color:#888; margin-top:3px;">
+                                🔗 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deleteBanner(${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function deleteBanner(id) {
+            if (!confirm('确定删除该宣传卡片吗？')) return;
+            const { error } = await db.from('announcements').delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchBanners();
+        }
+
+        // ==================== 🎫 兑换码管理逻辑 ====================
+        function generateRandomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('codeString').value = result;
+        }
+
+        document.getElementById('codeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('codeString').value.trim().toUpperCase();
+            const quota = parseInt(document.getElementById('codeQuota').value, 10) || 1;
+
             const { error } = await db.from('redemption_codes').insert([{
-                code: document.getElementById('codeString').value.toUpperCase(),
-                quota: parseInt(document.getElementById('codeQuota').value),
+                code: code,
+                quota: quota,
                 is_used: false
             }]);
-            if (!error) { alert('🎉 兑换码生成成功！'); e.target.reset(); }
-            else alert('生成失败: ' + error.message);
+
+            if (error) {
+                alert('兑换码生成失败: ' + error.message);
+            } else {
+                alert(`🎉 兑换码 [${code}] 生成成功！可增加 ${quota} 次点歌额度。`);
+                document.getElementById('codeForm').reset();
+                fetchRedemptionCodes();
+            }
         });
+
+        async function fetchRedemptionCodes() {
+            const container = document.getElementById('codeList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const { data, error } = await db.from('redemption_codes').select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无生成的兑换码</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                const statusBadge = item.is_used 
+                    ? '<span class="badge-code-used">🔴 已使用</span>' 
+                    : '<span class="badge-code-valid">🟢 未使用</span>';
+
+                card.innerHTML = `
+                    <div style="flex:1;">
+                        <div style="font-weight:bold; font-size:1rem; letter-spacing: 1px; color:var(--primary);">
+                            ${escapeHtml(item.code)} ${statusBadge}
+                        </div>
+                        <div style="font-size:0.78rem; color:#666; margin-top:4px;">
+                            可领额度: <b>+${item.quota || 1}</b> 次点歌权 | 创建时间: ${new Date(item.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deleteCode(${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function deleteCode(id) {
+            if (!confirm('确定删除该兑换码吗？')) return;
+            const { error } = await db.from('redemption_codes').delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchRedemptionCodes();
+        }
+
+        // ==================== 📢 广播公告管理逻辑 ====================
+        async function fetchCurrentNotice() {
+            const { data } = await db.from('announcements').select('content').eq('is_active', true).order('created_at', { ascending: false }).limit(1);
+            if (data && data.length > 0 && data[0].content) document.getElementById('noticeInput').value = data[0].content;
+        }
+
+        async function publishNotice() {
+            const content = document.getElementById('noticeInput').value;
+            await db.from('announcements').update({ is_active: false }).eq('is_active', true);
+            if (content.trim()) {
+                const { error } = await db.from('announcements').insert([{ content, is_active: true }]);
+                if (error) alert('发布失败: ' + error.message);
+                else alert('🎉 公告发布成功！');
+            } else {
+                alert('🎉 公告已清空/关闭');
+            }
+        }
+
+        // HTML 字符安全转义
+        function escapeHtml(str) {
+            return (str || '')
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
     </script>
 </body>
 </html>
