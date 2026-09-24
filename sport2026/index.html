@@ -327,7 +327,7 @@
         // 3. 加载广播台最新公告
         async function fetchNotice() {
             const { data, error } = await db
-                .from('sport2026_announcements')
+                .from('announcements')
                 .select('content')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
@@ -344,7 +344,7 @@
         // 查询用户历史提交总数
         async function getUserSongCount() {
             const { count, error } = await db
-                .from('sport2026_songs')
+                .from('songs')
                 .select('id', { count: 'exact', head: true })
                 .eq('voter_id', currentUser.id);
 
@@ -356,7 +356,7 @@
             const publicListEl = document.getElementById('publicSongList');
 
             const { data: songs, error } = await db
-                .from('sport2026_songs')
+                .from('songs')
                 .select('*')
                 .in('status', ['approved', 'played'])
                 .order('votes', { ascending: false });
@@ -373,7 +373,7 @@
 
             const songIds = songs.map(s => s.id);
             const { data: userVotes } = await db
-                .from('sport2026_song_votes')
+                .from('song_votes')
                 .select('song_id')
                 .eq('voter_id', currentUser.id)
                 .in('song_id', songIds);
@@ -394,7 +394,7 @@
                 li.innerHTML = `
                     <div class="song-info">
                         <div class="song-title">🎶 ${escapeHtml(song.song_name)}</div>
-                        <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || '匿名')}</div>
+                        <div class="song-artist">歌手: ${escapeHtml(song.artist)} | 点歌人: ${escapeHtml(song.class_and_name || song.requester || '匿名')}</div>
                         ${statusBadge}
                         ${audioPlayer}
                     </div>
@@ -425,7 +425,7 @@
             }
 
             const { data: mySongs, error } = await db
-                .from('sport2026_songs')
+                .from('songs')
                 .select('*')
                 .eq('voter_id', currentUser.id)
                 .order('created_at', { ascending: false });
@@ -495,7 +495,7 @@
                 if (file) {
                     const fileName = `${Date.now()}_${file.name}`;
                     const { error: uploadError } = await db.storage
-                        .from('sport2026-music')
+                        .from('music')
                         .upload(fileName, file);
 
                     if (uploadError) {
@@ -503,13 +503,13 @@
                     }
 
                     const { data: publicUrlData } = db.storage
-                        .from('sport2026-music')
+                        .from('music')
                         .getPublicUrl(fileName);
 
                     audioUrl = publicUrlData.publicUrl;
                 }
 
-                const { error } = await db.from('sport2026_songs').insert([{
+                const { error } = await db.from('songs').insert([{
                     class_and_name: document.getElementById('classAndName').value,
                     song_name: document.getElementById('songName').value,
                     artist: document.getElementById('artist').value,
@@ -540,11 +540,11 @@
         // 7. 点赞逻辑
         async function toggleVote(songId, currentVotes, isVoted) {
             if (isVoted) {
-                await db.from('sport2026_song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
-                await db.from('sport2026_songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
+                await db.from('song_votes').delete().eq('song_id', songId).eq('voter_id', currentUser.id);
+                await db.from('songs').update({ votes: Math.max(0, currentVotes - 1) }).eq('id', songId);
             } else {
-                await db.from('sport2026_song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
-                await db.from('sport2026_songs').update({ votes: currentVotes + 1 }).eq('id', songId);
+                await db.from('song_votes').insert([{ song_id: songId, voter_id: currentUser.id }]);
+                await db.from('songs').update({ votes: currentVotes + 1 }).eq('id', songId);
             }
             fetchPublicSongs();
         }
