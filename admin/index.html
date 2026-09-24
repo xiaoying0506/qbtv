@@ -107,6 +107,7 @@
 
         /* 内容与图片预览样式 */
         .img-preview { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; margin-right: 12px; flex-shrink: 0; }
+        .banner-preview { width: 120px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; margin-right: 12px; flex-shrink: 0; }
         .status-upcoming { color: #0984e3; font-weight: bold; }
         .status-ongoing { color: #00b894; font-weight: bold; }
         .status-ended { color: #b2bec3; font-weight: bold; }
@@ -114,6 +115,10 @@
         .style-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: normal; margin-left: 6px; }
         .style-badge-icon { background: #f3f4f6; color: #4b5563; }
         .style-badge-cover { background: #e0e7ff; color: #4338ca; }
+
+        /* 兑换码状态 Badge */
+        .badge-code-used { background: #ffeaa7; color: #d63031; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
+        .badge-code-valid { background: #55efc4; color: #008148; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -160,6 +165,8 @@
                 <button class="tab-btn" onclick="switchTab('played')">已播放历史</button>
                 <button class="tab-btn" onclick="switchTab('rejected')">已驳回</button>
                 <button class="tab-btn" onclick="switchTab('content')">内容发布与管理</button>
+                <button class="tab-btn" onclick="switchTab('banner')">🖼️ 宣传卡片</button>
+                <button class="tab-btn" onclick="switchTab('code')">🎫 兑换码管理</button>
                 <button class="tab-btn" onclick="switchTab('notice')">公告设置</button>
             </div>
 
@@ -214,13 +221,11 @@
                             </div>
                         </div>
 
-                        <!-- 🛠️ 图片功能：图片 URL 输入框 -->
                         <div class="form-group">
                             <label>🖼️ 封面图片链接 (图片 URL)</label>
                             <input type="text" id="contentCoverUrl" placeholder="如：https://example.com/image.jpg 或图床链接">
                         </div>
 
-                        <!-- 🔥 新增：卡片展示样式选择 -->
                         <div class="form-group">
                             <label>🎨 卡片展示样式</label>
                             <select id="cardStyleSelect">
@@ -229,7 +234,6 @@
                             </select>
                         </div>
 
-                        <!-- 🛠️ 活动状态拆分：即将开始 / 进行中 / 已结束 -->
                         <div id="activityOnlyFields">
                             <div class="form-group">
                                 <label>活动时间说明</label>
@@ -267,6 +271,59 @@
                         </select>
                     </div>
                     <div id="publishedContentList"><div class="empty-hint">加载中...</div></div>
+                </div>
+            </div>
+
+            <!-- 全局宣传卡片 (Banners) 管理 -->
+            <div id="bannerTab" class="tab-content hidden">
+                <div class="card">
+                    <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">🖼️ 发布/更新全局宣传横幅卡片</h3>
+                    <form id="bannerForm">
+                        <div class="form-group">
+                            <label>卡片标题 / 活动名称</label>
+                            <input type="text" id="bannerTitle" placeholder="例如：运动会专题点歌通道现已开启！" required>
+                        </div>
+                        <div class="form-group">
+                            <label>横幅图片链接 (Image URL)</label>
+                            <input type="text" id="bannerImageUrl" placeholder="例如：https://example.com/banner.jpg" required>
+                        </div>
+                        <div class="form-group">
+                            <label>🔗 点击跳转链接 (可填网址/文章)</label>
+                            <input type="text" id="bannerLinkUrl" placeholder="例如：https://... (选填)">
+                        </div>
+                        <button type="submit" class="btn-submit">发布宣传卡片</button>
+                    </form>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="font-size:1rem; color:var(--primary); margin-bottom:12px;">📋 当前上线宣传卡片</h3>
+                    <div id="bannerList"><div class="empty-hint">加载中...</div></div>
+                </div>
+            </div>
+
+            <!-- 兑换码管理 -->
+            <div id="codeTab" class="tab-content hidden">
+                <div class="card">
+                    <h3 style="margin-bottom:12px; font-size:1rem; color:var(--primary);">🎫 生成点歌额度兑换码</h3>
+                    <form id="codeForm">
+                        <div class="form-group">
+                            <label>兑换码字符 (可自动生成或自定义)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="codeString" placeholder="例如: MUSIC2026" required style="flex:2;">
+                                <button type="button" class="btn" style="background:#6c5ce7; color:white; flex:1;" onclick="generateRandomCode()">🎲 随机生成</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>赠送点歌额度数量</label>
+                            <input type="number" id="codeQuota" value="1" min="1" max="10" required>
+                        </div>
+                        <button type="submit" class="btn-submit">生成兑换码</button>
+                    </form>
+                </div>
+
+                <div class="card" style="margin-top:20px;">
+                    <h3 style="font-size:1rem; color:var(--primary); margin-bottom:12px;">📋 兑换码列表</h3>
+                    <div id="codeList"><div class="empty-hint">加载中...</div></div>
                 </div>
             </div>
 
@@ -362,7 +419,7 @@
         // 切换 Tab 页
         function switchTab(tabName) {
             activeTab = tabName;
-            const tabs = ['pending', 'approved', 'played', 'rejected', 'content', 'notice'];
+            const tabs = ['pending', 'approved', 'played', 'rejected', 'content', 'banner', 'code', 'notice'];
             document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
                 btn.classList.toggle('active', tabs[idx] === tabName);
             });
@@ -372,8 +429,8 @@
                 if (el) el.classList.toggle('hidden', t !== tabName);
             });
 
-            // 控制搜索栏在资讯/公告页隐藏
-            document.getElementById('toolbar').classList.toggle('hidden', ['content', 'notice'].includes(tabName));
+            // 控制搜索栏在资讯/卡片/兑换码/公告页隐藏
+            document.getElementById('toolbar').classList.toggle('hidden', ['content', 'banner', 'code', 'notice'].includes(tabName));
 
             document.getElementById('searchInput').value = '';
             if (tabName === 'pending') fetchPendingSongs();
@@ -381,6 +438,8 @@
             if (tabName === 'played') fetchPlayedSongs();
             if (tabName === 'rejected') fetchRejectedSongs();
             if (tabName === 'content') fetchPublishedContent();
+            if (tabName === 'banner') fetchBanners();
+            if (tabName === 'code') fetchRedemptionCodes();
             if (tabName === 'notice') fetchCurrentNotice();
         }
 
@@ -556,7 +615,7 @@
             document.body.removeChild(link);
         }
 
-        // 🛠️ 活动/资讯发布提交逻辑（加入 card_style 卡片样式处理）
+        // 活动/资讯发布提交逻辑
         document.getElementById('contentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const type = document.getElementById('contentType').value;
@@ -564,7 +623,7 @@
             const tag = document.getElementById('contentTag').value.trim();
             const icon = document.getElementById('contentIcon').value.trim() || '📰';
             const coverUrl = document.getElementById('contentCoverUrl').value.trim();
-            const cardStyle = document.getElementById('cardStyleSelect').value; // 读取卡片样式选项
+            const cardStyle = document.getElementById('cardStyleSelect').value;
             const linkUrl = document.getElementById('contentLink').value.trim();
             const desc = document.getElementById('contentDesc').value.trim();
 
@@ -574,13 +633,13 @@
                 category: tag, 
                 cover_icon: icon, 
                 cover_url: coverUrl, 
-                card_style: cardStyle, // 保存卡片样式 (icon / full_cover)
+                card_style: cardStyle, 
                 link_url: linkUrl 
             };
 
             if (type === 'activity') {
                 const eventTime = document.getElementById('contentEventTime').value.trim();
-                const status = document.getElementById('contentStatus').value; // upcoming | ongoing | ended
+                const status = document.getElementById('contentStatus').value;
                 payload = { 
                     ...payload, 
                     description: desc, 
@@ -604,7 +663,7 @@
             }
         });
 
-        // 🛠️ 获取已发布内容列表（展示卡片样式 Badge）
+        // 获取已发布内容列表
         async function fetchPublishedContent() {
             const type = document.getElementById('manageTypeFilter').value;
             const container = document.getElementById('publishedContentList');
@@ -628,12 +687,10 @@
                 const card = document.createElement('div');
                 card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
 
-                // 图片预览节点
                 const imgHtml = item.cover_url 
                     ? `<img src="${escapeHtml(item.cover_url)}" class="img-preview" alt="封面" />` 
                     : '';
 
-                // 卡片样式 Badge 标记
                 const cardStyleBadge = item.card_style === 'full_cover' 
                     ? '<span class="style-badge style-badge-cover">🖼️ 铺满背景</span>' 
                     : '<span class="style-badge style-badge-icon">📌 图标模式</span>';
@@ -669,7 +726,6 @@
             });
         }
 
-        // 删除已发布内容
         async function deletePublishedContent(table, id) {
             if (!confirm('确定要删除此条发布内容吗？删除后小程序前端将同步下架。')) return;
             const { error } = await db.from(table).delete().eq('id', id);
@@ -677,10 +733,158 @@
             else fetchPublishedContent();
         }
 
-        // 公告获取与发布
+        // ==================== 🖼️ 宣传卡片 (Banners) 管理逻辑 ====================
+        document.getElementById('bannerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const title = document.getElementById('bannerTitle').value.trim();
+            const imageUrl = document.getElementById('bannerImageUrl').value.trim();
+            const linkUrl = document.getElementById('bannerLinkUrl').value.trim();
+
+            const { error } = await db.from('announcements').insert([{
+                title: title,
+                image_url: imageUrl,
+                link_url: linkUrl,
+                is_active: true
+            }]);
+
+            if (error) {
+                alert('宣传卡片发布失败: ' + error.message);
+            } else {
+                alert('🎉 宣传卡片发布成功！');
+                document.getElementById('bannerForm').reset();
+                fetchBanners();
+            }
+        });
+
+        async function fetchBanners() {
+            const container = document.getElementById('bannerList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const { data, error } = await db.from('announcements').select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无已发宣传卡片</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                const imgHtml = item.image_url 
+                    ? `<img src="${escapeHtml(item.image_url)}" class="banner-preview" alt="卡片" />` 
+                    : '';
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; flex:1; padding-right:10px; overflow:hidden;">
+                        ${imgHtml}
+                        <div style="flex:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:0.9rem;">${escapeHtml(item.title || '宣传卡片')}</div>
+                            <div style="font-size:0.75rem; color:#888; margin-top:3px;">
+                                🔗 链接: ${item.link_url ? escapeHtml(item.link_url) : '无'}
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deleteBanner(${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function deleteBanner(id) {
+            if (!confirm('确定删除该宣传卡片吗？')) return;
+            const { error } = await db.from('announcements').delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchBanners();
+        }
+
+        // ==================== 🎫 兑换码管理逻辑 ====================
+        function generateRandomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('codeString').value = result;
+        }
+
+        document.getElementById('codeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('codeString').value.trim().toUpperCase();
+            const quota = parseInt(document.getElementById('codeQuota').value, 10) || 1;
+
+            const { error } = await db.from('redemption_codes').insert([{
+                code: code,
+                quota: quota,
+                is_used: false
+            }]);
+
+            if (error) {
+                alert('兑换码生成失败: ' + error.message);
+            } else {
+                alert(`🎉 兑换码 [${code}] 生成成功！可增加 ${quota} 次点歌额度。`);
+                document.getElementById('codeForm').reset();
+                fetchRedemptionCodes();
+            }
+        });
+
+        async function fetchRedemptionCodes() {
+            const container = document.getElementById('codeList');
+            container.innerHTML = '<div class="empty-hint">加载中...</div>';
+
+            const { data, error } = await db.from('redemption_codes').select('*').order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty-hint" style="color:var(--danger)">加载出错: ${error.message}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无生成的兑换码</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;';
+
+                const statusBadge = item.is_used 
+                    ? '<span class="badge-code-used">🔴 已使用</span>' 
+                    : '<span class="badge-code-valid">🟢 未使用</span>';
+
+                card.innerHTML = `
+                    <div style="flex:1;">
+                        <div style="font-weight:bold; font-size:1rem; letter-spacing: 1px; color:var(--primary);">
+                            ${escapeHtml(item.code)} ${statusBadge}
+                        </div>
+                        <div style="font-size:0.78rem; color:#666; margin-top:4px;">
+                            可领额度: <b>+${item.quota || 1}</b> 次点歌权 | 创建时间: ${new Date(item.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <button class="btn btn-delete" style="max-width:70px; padding:6px 8px; font-size:0.75rem;" onclick="deleteCode(${item.id})">删除</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function deleteCode(id) {
+            if (!confirm('确定删除该兑换码吗？')) return;
+            const { error } = await db.from('redemption_codes').delete().eq('id', id);
+            if (error) alert('删除失败: ' + error.message);
+            else fetchRedemptionCodes();
+        }
+
+        // ==================== 📢 广播公告管理逻辑 ====================
         async function fetchCurrentNotice() {
             const { data } = await db.from('announcements').select('content').eq('is_active', true).order('created_at', { ascending: false }).limit(1);
-            if (data && data.length > 0) document.getElementById('noticeInput').value = data[0].content;
+            if (data && data.length > 0 && data[0].content) document.getElementById('noticeInput').value = data[0].content;
         }
 
         async function publishNotice() {
