@@ -237,7 +237,7 @@
                         <div id="activityOnlyFields">
                             <div class="form-group">
                                 <label>活动时间说明</label>
-                                <input type="text" id="contentEventTime" placeholder="例如：本周五 16:30 - 18:00 或 2026-09-15">
+                                <input type="text" id="contentEventTime" placeholder="例如：本周五 16:30 - 18:00">
                             </div>
                             <div class="form-group">
                                 <label>活动状态</label>
@@ -455,7 +455,8 @@
             const filtered = rawSongsCache.filter(s => 
                 (s.song_name && s.song_name.toLowerCase().includes(query)) ||
                 (s.artist && s.artist.toLowerCase().includes(query)) ||
-                (s.requester && s.requester.toLowerCase().includes(query))
+                (s.requester && s.requester.toLowerCase().includes(query)) ||
+                (s.class_and_name && s.class_and_name.toLowerCase().includes(query))
             );
             renderSongList(filtered, activeTab);
         }
@@ -522,7 +523,8 @@
                     ? `<audio controls src="${song.audio_url}"></audio>` 
                     : '<div style="font-size:0.8rem; color:#999; margin:8px 0;">(未上传音频)</div>';
 
-                const requesterText = song.requester ? ` | 点歌人: ${escapeHtml(song.requester)}` : '';
+                const requesterName = song.class_and_name || song.requester || '';
+                const requesterText = requesterName ? ` | 点歌人: ${escapeHtml(requesterName)}` : '';
                 const messageHtml = song.message ? `<div class="song-msg">💬 寄语: ${escapeHtml(song.message)}</div>` : '';
                 const reasonHtml = song.reject_reason ? `<div class="reject-reason-box">驳回原因: ${escapeHtml(song.reject_reason)}</div>` : '';
 
@@ -531,7 +533,7 @@
                     actionBtns = `
                         <button class="btn btn-approve" onclick="updateStatus(${song.id}, 'approved')">🟢 通过</button>
                         <button class="btn btn-reject" onclick="rejectSong(${song.id})">🔴 驳回</button>
-                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除(恢复额度)</button>
+                        <button class="btn btn-delete" onclick="deleteSong(${song.id})">🗑️ 删除</button>
                     `;
                 } else if (tab === 'approved') {
                     actionBtns = `
@@ -581,7 +583,7 @@
         }
 
         async function deleteSong(songId) {
-            if (!confirm('确定彻底删除该条记录吗？删除后该学生本周将恢复点歌额度。')) return;
+            if (!confirm('确定彻底删除该条记录吗？')) return;
             const { error } = await db.from('songs').delete().eq('id', songId);
             if (error) alert('删除失败: ' + error.message);
             updateStats();
@@ -602,7 +604,8 @@
 
             let csvContent = "\uFEFF歌名,歌手,点歌人,留言寄语,得票数,音频链接\n";
             songs.forEach(s => {
-                csvContent += `"${s.song_name || ''}","${s.artist || ''}","${s.requester || ''}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
+                const requesterName = s.class_and_name || s.requester || '';
+                csvContent += `"${s.song_name || ''}","${s.artist || ''}","${requesterName}","${s.message || ''}",${s.votes || 0},"${s.audio_url || ''}"\n`;
             });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -727,7 +730,7 @@
         }
 
         async function deletePublishedContent(table, id) {
-            if (!confirm('确定要删除此条发布内容吗？删除后小程序前端将同步下架。')) return;
+            if (!confirm('确定要删除此条发布内容吗？删除后前端将同步下架。')) return;
             const { error } = await db.from(table).delete().eq('id', id);
             if (error) alert('删除失败: ' + error.message);
             else fetchPublishedContent();
